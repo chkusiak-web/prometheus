@@ -10,7 +10,7 @@ export const PILLARS: { id: Pillar; name: string; color: string }[] = [
 ]
 export const pillarOf = (p: Pillar) => PILLARS.find(x => x.id === p)!
 
-export interface Block { id: string; name: string; pillar: Pillar; start: number; len: number; done: boolean; doneAt?: number }
+export interface Block { id: string; name: string; pillar: Pillar; start: number; len: number; done: boolean; doneAt?: number; trait?: string }
 export interface Sleep { bed: number; wake: number; quality: number } // minutes since midnight
 export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; closedAt?: number; water?: number; sleep?: Sleep }
 export interface WSet { w: number; r: number; done: boolean }
@@ -33,6 +33,8 @@ export interface State {
   workouts?: Workout[]
   /** The workout in progress, kept so leaving the app doesn't lose it. */
   run?: Workout | null
+  /** Your own Soul quests, by trait. */
+  myQuests?: Record<string, string[]>
 }
 
 export const DEFAULT_PLAN: Plan = {
@@ -123,6 +125,8 @@ export const actions = {
   },
   setPlan(p: Plan) { set({ ...state, plan: p }) },
   setWithhold(k: string, w: Withhold) { set({ ...state, withholds: { ...state.withholds, [k]: w } }) },
+  addMyQuest(trait: string, q: string) { set({ ...state, myQuests: { ...state.myQuests, [trait]: [...(state.myQuests?.[trait] || []), q] } }) },
+  setTriangle(k: string, t: string[]) { patchDay(k, d => ({ ...d, triangle: t })) },
   setWater(k: string, n: number) { patchDay(k, d => ({ ...d, water: Math.max(0, Math.min(12, n)) })) },
   setSleep(k: string, sl: Sleep | undefined) { patchDay(k, d => ({ ...d, sleep: sl })) },
   setRun(r: Workout | null) { set({ ...state, run: r }) },

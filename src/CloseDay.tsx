@@ -2,17 +2,14 @@ import { useState } from 'react'
 import { actions, getDay, pillarOf, useStore } from './store'
 import { addDays, headDate, lenLab, tlab } from './date'
 import BlockSheet, { type SheetMode } from './BlockSheet'
-
-// The 12 Soul traits, in their 4 archetype groups (from the prototype's sky).
-const TRAITS = ['Order', 'Purpose', 'Blessing', 'Discipline', 'Courage', 'Decisive', 'Learning', 'Self-aware', 'Mastery', 'Connection', 'Presence', 'Creativity']
-const R = 120
-const pos = (i: number) => { const a = (i * 30 - 90 + 15) * Math.PI / 180; return [R * Math.cos(a), R * Math.sin(a)] }
+import Sky from './Sky'
+import { full } from './soul'
 
 export default function CloseDay({ day, onDone }: { day: string; onDone: () => void }) {
   const saved = useStore(s => getDay(s, day))
   const [step, setStep] = useState(0)
   const [rating, setRating] = useState(saved.rating ?? 0)
-  const [picks, setPicks] = useState<string[]>(saved.triangle ?? [])
+  const [picks, setPicks] = useState<string[]>((saved.triangle ?? []).map(full))
   const tomorrow = addDays(day, 1)
   const tBlocks = useStore(s => getDay(s, tomorrow).blocks)
   const [sheet, setSheet] = useState<SheetMode | null>(null)
@@ -45,21 +42,7 @@ export default function CloseDay({ day, onDone }: { day: string; onDone: () => v
           <div className="lab">Soul triangle</div>
           <h1 className="cond">Where did you show up?</h1>
           <p className="small">Tap 3 or more traits you lived today.</p>
-          <svg className="sky" viewBox="-170 -170 340 340" role="group" aria-label="Traits">
-            {picks.length > 1 && <polygon points={TRAITS.filter(t => picks.includes(t)).map(t => pos(TRAITS.indexOf(t)).join(',')).join(' ')} fill="rgba(255,176,0,.18)" stroke="var(--gold)" strokeWidth="3" strokeLinejoin="round" />}
-            {TRAITS.map((t, i) => {
-              const [x, y] = pos(i), on = picks.includes(t)
-              return (
-                <g key={t} role="checkbox" aria-checked={on} aria-label={t} tabIndex={0} className="star"
-                  onClick={() => setPicks(p => on ? p.filter(q => q !== t) : [...p, t])}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPicks(p => on ? p.filter(q => q !== t) : [...p, t]) } }}>
-                  <circle cx={x} cy={y} r="26" fill="transparent" />
-                  <circle cx={x} cy={y} r={on ? 10 : 6} fill={on ? 'var(--gold)' : '#6F6A63'} />
-                  <text x={x} y={y + (y > 0 ? 28 : -18)} textAnchor="middle" className={on ? 'on' : ''}>{t}</text>
-                </g>
-              )
-            })}
-          </svg>
+          <Sky picks={picks} onTap={t => setPicks(p => p.includes(t) ? p.filter(q => q !== t) : [...p, t])} />
           <button className="pill big" disabled={picks.length < 3} onClick={() => setStep(2)}>Next</button>
           <button className="link" onClick={() => setStep(2)}>Skip</button>
         </div>
