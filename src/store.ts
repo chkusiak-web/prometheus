@@ -16,7 +16,7 @@ export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; cl
 export interface WSet { w: number; r: number; done: boolean }
 export interface WEx { name: string; sets: WSet[] }
 export interface Workout { id: string; name: string; day: string; startedAt: number; endedAt?: number; ex: WEx[]; cur: number }
-export interface FoodItem { id: string; meal: Meal; name: string; kcal: number }
+export interface FoodItem { id: string; meal: Meal; name: string; kcal: number; p?: number; c?: number; f?: number; grams?: number }
 export type Meal = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
 export const MEALS: Meal[] = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
 export interface Plan { goal: number; pace: number; workouts: number; maint: number; floor: number; small: string; big: string; wh: string[] }
@@ -128,8 +128,8 @@ export const actions = {
     if (lb == null) delete w[k]; else w[k] = Math.round(lb * 10) / 10
     set({ ...state, weights: w })
   },
-  addFood(k: string, meal: Meal, name: string, kcal: number) {
-    set({ ...state, food: { ...state.food, [k]: [...(state.food?.[k] || []), { id: uid(), meal, name, kcal: Math.round(kcal) }] } })
+  addFood(k: string, meal: Meal, name: string, kcal: number, extra?: { p?: number; c?: number; f?: number; grams?: number }) {
+    set({ ...state, food: { ...state.food, [k]: [...(state.food?.[k] || []), { id: uid(), meal, name, kcal: Math.round(kcal), ...extra }] } })
   },
   removeFood(k: string, id: string) {
     set({ ...state, food: { ...state.food, [k]: (state.food?.[k] || []).filter(f => f.id !== id) } })
