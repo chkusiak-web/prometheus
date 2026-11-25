@@ -404,3 +404,17 @@ button.htile:active{transform:scale(.98)}
 .portion-fields input,.portion-fields select{width:100%;min-width:0;font-size:16px}
 
 .food-camera{width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--ink);border-radius:16px}
+
+.food-camera-frame{position:relative;overflow:hidden;border-radius:16px}
+.food-camera{display:block}
+.food-scan-guide{position:absolute;inset:24% 10%;border:1px solid rgba(255,255,255,.65);border-radius:12px;overflow:hidden;pointer-events:none}
+.food-camera-frame[data-phase="unavailable"] .food-scan-guide{display:none}
+.food-scan-guide i{display:none;position:absolute;top:50%;left:5%;right:5%;height:2px;background:#fff;box-shadow:0 0 8px rgba(255,255,255,.85)}
+.food-camera-frame[data-phase="scanning"] .food-scan-guide i{display:block;animation:food-scan 1.5s ease-in-out infinite alternate}
+.food-camera-frame[data-phase="locked"] .food-scan-guide{border:2px solid var(--green)}
+.food-focus-button{position:absolute;inset:0;border:0;background:none;touch-action:manipulation;cursor:crosshair}
+.food-focus-button:focus-visible{outline:2px solid #fff;outline-offset:-4px}
+.food-focus-ring{position:absolute;width:42px;height:42px;border:2px solid #fff;border-radius:8px;transform:translate(-50%,-50%);pointer-events:none;animation:food-focus .7s ease-out forwards}
+@keyframes food-scan{from{top:10%}to{top:90%}}
+@keyframes food-focus{0%,65%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){.food-focus-ring{display:none}}
