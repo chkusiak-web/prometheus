@@ -425,6 +425,3 @@ button.htile:active{transform:scale(.98)}
 .body-week-row p{margin:6px 0}
 .body-week-row summary{cursor:pointer}
 .body-week-row select{max-width:100%;font-size:16px}
-.body-today{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;border-radius:16px;background:var(--paper)}
-.body-today .lab,.body-today strong{display:block}
-.body-today .pill{flex:none}
