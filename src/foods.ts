@@ -18,7 +18,8 @@ const BRAND = /^[A-Z0-9'&.\- ]{3,},/
 /** Every word must start a word in the name. Common, whole forms rank first; brands and processed forms sink. */
 export function searchFoods(q: string): FoodRow[] {
   if (!FOODS) return []
-  q = q.toLowerCase().trim(); q = SYN[q] || q
+  q = q.toLowerCase().trim().replace(/\s+/g, ' ')
+  q = SYN[q] || q
   const qs = q.split(/[^a-z0-9%]+/).filter(Boolean).map(w => w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)
   if (!qs.length) return []
   const out: [number, number][] = []
