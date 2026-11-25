@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { actions, getDay, MEALS, useStore, type FoodItem, type Meal, type Plan, type State } from './store'
 import FoodScanner from './FoodScanner'
 import { isBarcode, loadFoods, lookupBarcode, portionUnits, searchBrandedFoods, searchFoods, servingAmount, servL, shortName, tidy, type FoodRow } from './foods'
+import BodyWeek from './BodyWeek'
 import { Preview } from './Workout'
 import { addDays, fromHHMM, fromKey, toHHMM } from './date'
 import { useNow } from './useNow'
@@ -50,10 +51,12 @@ export default function Body() {
           <span className="d" style={{ color: '#C98A00' }}>{Number.isNaN(slAvg) ? 'Last night' : `avg ${hm(slAvg)}`}</span>
         </button>
         <button className="bstat" onClick={() => setSheet('workout')} aria-label="Start workout">
-          <span className="lab">Workouts</span><span className="n">{st.workouts}/{st.plan.workouts}</span>
+          <span className="lab">Lifting days</span><span className="n">{st.workouts}/{st.plan.workouts}</span>
           <span className="d" style={{ color: st.workouts >= st.plan.workouts ? 'var(--green)' : 'var(--muted)' }}>this week</span>
         </button>
       </section>
+
+      <BodyWeek today={today} />
 
       <div className="figwrap">
         <style>{css}</style>
