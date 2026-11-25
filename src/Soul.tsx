@@ -31,13 +31,13 @@ export default function Soul() {
         <section className="quest">
           <div className="row between"><span className="lab">{cur.trait || 'Soul'} · Quest {Math.min(qi, quests.length - 1) + 1} of {quests.length}</span>
             {quests.length > 1 && <span className="row"><button className="mini" aria-label="Previous quest" onClick={() => setQi((qi - 1 + quests.length) % quests.length)}>‹</button><button className="mini" aria-label="Next quest" onClick={() => setQi((qi + 1) % quests.length)}>›</button></span>}</div>
-          <div className={'cond qtext' + (cur.done ? ' done' : '')}>{cur.name}</div>
+          <div className={'cond qtext' + (cur.name.length > 22 ? ' long' : '') + (cur.done ? ' done' : '')}>{cur.name}</div>
           <button className="pill" onClick={() => actions.toggle(today, cur.id)}>{cur.done ? 'Undo' : 'Done'}</button>
         </section>
       ) : (
         <section className="quest">
           <span className="lab">Today's quest · {sug.trait}</span>
-          <div className="cond qtext">{sug.quest.text}</div>
+          <div className={"cond qtext" + (sug.quest.text.length > 22 ? " long" : "")}>{sug.quest.text}</div>
           <div className="row"><button className="pill" onClick={() => add(sug.trait, sug.quest)}>+ Add to today</button><button className="pill ghost" onClick={() => setTrait(sug.trait)}>Other quests</button></div>
         </section>
       )}

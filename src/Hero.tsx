@@ -21,7 +21,7 @@ export default function HeroTab() {
 
   return (
     <main className="screen hero">
-      <div className="row between"><h1 className="cond pageh">Hero</h1><button className="pill ghost" aria-label="Settings" onClick={() => setSheet('settings')}>⚙</button></div>
+      <div className="row between"><h1 className="cond pageh">Hero</h1><button className="pill" aria-label="Settings" onClick={() => setSheet('settings')}>⚙</button></div>
 
       <div className="tiles">
         {([['Mind', sc.mind, 'var(--cobalt)'], ['Body', sc.body, 'var(--ember)'], ['Soul', sc.soul, 'var(--gold)']] as const).map(([n, v, c]) => (
