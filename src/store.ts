@@ -11,7 +11,11 @@ export const PILLARS: { id: Pillar; name: string; color: string }[] = [
 export const pillarOf = (p: Pillar) => PILLARS.find(x => x.id === p)!
 
 export interface Block { id: string; name: string; pillar: Pillar; start: number; len: number; done: boolean; doneAt?: number }
-export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; closedAt?: number }
+export interface Sleep { bed: number; wake: number; quality: number } // minutes since midnight
+export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; closedAt?: number; water?: number; sleep?: Sleep }
+export interface WSet { w: number; r: number; done: boolean }
+export interface WEx { name: string; sets: WSet[] }
+export interface Workout { id: string; name: string; day: string; startedAt: number; endedAt?: number; ex: WEx[]; cur: number }
 export interface FoodItem { id: string; meal: Meal; name: string; kcal: number }
 export type Meal = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
 export const MEALS: Meal[] = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
@@ -26,6 +30,9 @@ export interface State {
   food?: Record<string, FoodItem[]>
   plan?: Plan
   withholds?: Record<string, Withhold>
+  workouts?: Workout[]
+  /** The workout in progress, kept so leaving the app doesn't lose it. */
+  run?: Workout | null
 }
 
 export const DEFAULT_PLAN: Plan = {
@@ -116,6 +123,19 @@ export const actions = {
   },
   setPlan(p: Plan) { set({ ...state, plan: p }) },
   setWithhold(k: string, w: Withhold) { set({ ...state, withholds: { ...state.withholds, [k]: w } }) },
+  setWater(k: string, n: number) { patchDay(k, d => ({ ...d, water: Math.max(0, Math.min(12, n)) })) },
+  setSleep(k: string, sl: Sleep | undefined) { patchDay(k, d => ({ ...d, sleep: sl })) },
+  setRun(r: Workout | null) { set({ ...state, run: r }) },
+  /** Saves the workout and adds a done Body block for it, so it counts toward the day. */
+  finishRun() {
+    const r = state.run; if (!r) return
+    const w: Workout = { ...r, endedAt: Date.now() }
+    const d = new Date(r.startedAt), start = d.getHours() * 60 + d.getMinutes()
+    const len = Math.max(15, Math.round((w.endedAt! - r.startedAt) / 60000 / 15) * 15)
+    const day = getDay(state, r.day)
+    set({ ...state, run: null, workouts: [...(state.workouts || []), w],
+      days: { ...state.days, [r.day]: { ...day, blocks: sortB([...day.blocks, { id: uid(), name: r.name, pillar: 'body', start, len, done: true, doneAt: Date.now() }]) } } })
+  },
   importAll(json: string) {
     const s = JSON.parse(json)
     if (!s || s.v !== 1 || typeof s.days !== 'object') throw new Error('Not a Prometheus backup')
@@ -127,6 +147,8 @@ export const actions = {
 /** Day won: 3+ check-offs, with at least one each in Mind, Body and Soul. */
 export function dayStatus(d: Day) {
   const done = d.blocks.filter(b => b.done)
-  const has = { mind: done.some(b => b.pillar === 'mind'), body: done.some(b => b.pillar === 'body'), soul: done.some(b => b.pillar === 'soul') }
-  return { count: done.length, has, won: done.length >= 3 && has.mind && has.body && has.soul }
+  // 8 of 8 water glasses also counts as the Body check.
+  const has = { mind: done.some(b => b.pillar === 'mind'), body: done.some(b => b.pillar === 'body') || (d.water ?? 0) >= 8, soul: done.some(b => b.pillar === 'soul') }
+  const count = done.length + ((d.water ?? 0) >= 8 ? 1 : 0)
+  return { count, has, won: count >= 3 && has.mind && has.body && has.soul }
 }

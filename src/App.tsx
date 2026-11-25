@@ -3,6 +3,7 @@ import Today from './Today'
 import CloseDay from './CloseDay'
 import Later from './Later'
 import Body from './Body'
+import { Runner } from './Workout'
 import { useNow } from './useNow'
 import { dayStatus, getDay, useStore } from './store'
 
@@ -39,6 +40,7 @@ export default function App() {
           <button key={t.id} className={'tab' + (tab === t.id ? ' on' : '')} aria-label={t.label} aria-current={tab === t.id} onClick={() => setTab(t.id)}>{t.icon}</button>
         ))}
       </nav>
+      <Runner />
       {closing && <CloseDay day={today} onDone={() => setClosing(false)} />}
       {moment && <div className="won" role="status" onClick={() => setMoment(false)}><div className="cond">Day won</div></div>}
     </div>

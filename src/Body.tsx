@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { actions, MEALS, useStore, type Meal, type Plan, type State } from './store'
-import { addDays, fromKey } from './date'
+import { actions, getDay, MEALS, useStore, type Meal, type Plan, type State } from './store'
+import { Preview } from './Workout'
+import { addDays, fromHHMM, fromKey, toHHMM } from './date'
 import { useNow } from './useNow'
 import { bodyStats, TIER } from './body'
 
-type Sheet = 'weigh' | 'food' | 'plan' | 'edit' | null
+type Sheet = 'weigh' | 'food' | 'plan' | 'edit' | 'workout' | 'sleep' | null
 const f1 = (n: number) => Number.isNaN(n) ? '–' : n.toFixed(1)
 const monthYear = (k: string) => fromKey(k).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
 
@@ -15,6 +16,7 @@ export default function Body() {
   const [sheet, setSheet] = useState<Sheet>(null)
   const eaten = st.kcal(today)
   const w = s.weights?.[today]
+  const d = getDay(s, today), water = d.water ?? 0, sl = d.sleep
 
   return (
     <main className="screen body">
@@ -34,6 +36,8 @@ export default function Body() {
         </span>
       </button>
 
+      <button className="pill big" onClick={() => setSheet('workout')}>Start workout</button>
+
       <div className="tiles">
         <button className="tile" onClick={() => setSheet('weigh')}>
           <span className="lab">Weigh-in</span>
@@ -45,8 +49,18 @@ export default function Body() {
           <span className="n">{eaten || 'Log'}</span>
           <span className="small">{eaten ? `of ${st.target.toLocaleString()} kcal` : `Target ${st.target.toLocaleString()}`}</span>
         </button>
+        <div className="tile">
+          <span className="lab">Water</span>
+          <span className="glass" aria-label={`${water} of 8 glasses`}>{Array.from({ length: 8 }, (_, i) => <i key={i} className={i < water ? 'f' : ''} />)}</span>
+          <span className="row between"><span className="small">{water}/8{water >= 8 ? ' · Body ✓' : ''}</span>
+            <span className="row"><button className="mini" aria-label="One less glass" onClick={() => actions.setWater(today, water - 1)}>−</button><button className="mini dark" aria-label="Add a glass" onClick={() => actions.setWater(today, water + 1)}>+</button></span></span>
+        </div>
+        <button className="tile" onClick={() => setSheet('sleep')}>
+          <span className="lab">Sleep</span>
+          <span className="n">{sl ? durL(sl.bed, sl.wake) : 'Log'}</span>
+          <span className="small">{sl ? `Quality ${sl.quality}/5` : 'Last night'}</span>
+        </button>
       </div>
-      <a className="link" href="./prototype/">Workouts, water and sleep are next. See the design ›</a>
 
       {sheet && (
         <div className="scrim" onClick={() => setSheet(null)}>
@@ -55,6 +69,8 @@ export default function Body() {
             {sheet === 'weigh' && <WeighIn today={today} current={w} close={() => setSheet(null)} />}
             {sheet === 'food' && <Food today={today} s={s} target={st.target} />}
             {sheet === 'plan' && <PlanSheet s={s} today={today} edit={() => setSheet('edit')} />}
+            {sheet === 'workout' && <Preview close={() => setSheet(null)} />}
+            {sheet === 'sleep' && <SleepSheet today={today} close={() => setSheet(null)} />}
             {sheet === 'edit' && <EditPlan plan={st.plan} close={() => setSheet('plan')} />}
           </div>
         </div>
@@ -195,3 +211,25 @@ const Stepper = ({ label, value, dec, inc }: { label: string; value: string; dec
   <div className="stepper"><span>{label}</span><span className="st-c"><button type="button" aria-label={`Less ${label}`} onClick={dec}>−</button><b>{value}</b><button type="button" aria-label={`More ${label}`} onClick={inc}>+</button></span></div>
 )
 
+
+const durL = (bed: number, wake: number) => { const m = ((wake - bed) % 1440 + 1440) % 1440; return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` }
+
+function SleepSheet({ today, close }: { today: string; close: () => void }) {
+  const cur = useStore(s => getDay(s, today).sleep)
+  const prev = useStore(s => getDay(s, addDays(today, -1)).sleep)
+  const [bed, setBed] = useState(cur?.bed ?? prev?.bed ?? 23 * 60)
+  const [wake, setWake] = useState(cur?.wake ?? prev?.wake ?? 7 * 60)
+  const [q, setQ] = useState(cur?.quality ?? 3)
+  return (
+    <form onSubmit={e => { e.preventDefault(); actions.setSleep(today, { bed, wake, quality: q }); close() }}>
+      <div className="lab">Last night</div>
+      <h2 className="cond">{durL(bed, wake)}</h2>
+      <label className="field">Bed<input type="time" step={600} value={toHHMM(bed)} onChange={e => e.target.value && setBed(fromHHMM(e.target.value))} /></label>
+      <label className="field">Wake<input type="time" step={600} value={toHHMM(wake)} onChange={e => e.target.value && setWake(fromHHMM(e.target.value))} /></label>
+      <div className="lab">Quality</div>
+      <div className="seg" role="radiogroup" aria-label="Quality">{[1, 2, 3, 4, 5].map(n => <button type="button" key={n} role="radio" aria-checked={q === n} className={q === n ? 'on' : ''} onClick={() => setQ(n)}>{n}</button>)}</div>
+      <button className="pill big">Save</button>
+      {cur && <button type="button" className="link" onClick={() => { actions.setSleep(today, undefined); close() }}>Remove</button>}
+    </form>
+  )
+}
