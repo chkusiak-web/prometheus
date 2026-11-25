@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { actions, getDay, MEALS, useStore, type FoodItem, type Meal, type Plan, type State } from './store'
 import FoodScanner from './FoodScanner'
 import { isBarcode, loadFoods, lookupBarcode, portionUnits, searchBrandedFoods, searchFoods, servingAmount, servL, shortName, tidy, type FoodRow } from './foods'
-import BodyWeek from './BodyWeek'
+import BodyWeek, { suggestedBodySession } from './BodyWeek'
 import { Preview } from './Workout'
 import { addDays, fromHHMM, fromKey, toHHMM } from './date'
 import { useNow } from './useNow'
@@ -24,7 +24,8 @@ export default function Body() {
   const { today } = useNow()
   const s = useStore(x => x)
   const st = bodyStats(s, today)
-  const mm = muscleMap(s, today)
+  const suggested = suggestedBodySession(s, today)
+  const mm = muscleMap(s, today, suggested?.lifts.map(([name]) => name))
   const [sheet, setSheet] = useState<Sheet>(null)
   const [muscle, setMuscle] = useState<string | null>(null)
   const [back, setBack] = useState(false)
@@ -78,7 +79,7 @@ export default function Body() {
             {sheet === 'log' && (
               <>
                 <h2 className="cond">Log</h2>
-                <button className="lgo" onClick={() => setSheet('workout')}><span className="cond">Start workout</span><small>{mm.next} · up next</small></button>
+                <button className="lgo" onClick={() => setSheet('workout')}><span className="cond">Start workout</span><small>{suggested?.name ?? mm.next} · up next</small></button>
                 <div className="lgrid">
                   <button className="lgx" style={{ ['--c' as string]: 'var(--green)' }} onClick={() => setSheet('food')}><i className="fill" style={{ height: `${Math.min(100, eaten / st.target * 100)}%` }} /><span className="lab">Food</span><span className="lgn"><b className="cond">{Math.max(0, st.target - eaten).toLocaleString()}</b><small>kcal left</small></span></button>
                   <button className="lgx" style={{ ['--c' as string]: 'var(--cobalt)' }} onClick={() => actions.setWater(today, water >= 8 ? 0 : water + 1)} aria-label={`Water ${water} of 8. Tap to add a glass.`}><i className="fill" style={{ height: `${water / 8 * 100}%` }} /><span className="lab">Water · tap +1</span><span className="lgn"><b className="cond">{water}/8</b><small>glasses</small></span></button>
