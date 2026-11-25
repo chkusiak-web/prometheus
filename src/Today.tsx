@@ -49,7 +49,7 @@ export default function Today({ onClose }: { onClose: () => void }) {
         <section className="upnext" style={{ background: pillarOf(upNext.pillar).color, color: upNext.pillar === 'soul' ? 'var(--ink)' : '#fff' }}>
           <button className="un-main" onClick={() => setSheet({ kind: 'actions', id: upNext.id })}>
             <div className="lab">Up next · {tlab(upNext.start, true)} · {lenLab(upNext.len)}</div>
-            <div className="cond un-name">{upNext.name}</div>
+            <div className={"cond un-name" + (upNext.name.length > 22 ? " long" : "")}>{upNext.name}</div>
           </button>
           <button className="un-check" aria-label={`Mark ${upNext.name} done`} onClick={() => actions.toggle(today, upNext.id)}><Check /></button>
         </section>

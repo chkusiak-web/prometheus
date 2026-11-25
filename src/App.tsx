@@ -44,7 +44,7 @@ export default function App() {
       </nav>
       <Runner />
       {closing && <CloseDay day={today} onDone={() => setClosing(false)} />}
-      {moment && <div className="won" role="status" onClick={() => setMoment(false)}><div className="cond">Day won</div></div>}
+      {moment && <div className="wonmoment" role="status" onClick={() => setMoment(false)}><div className="cond">Day won</div></div>}
     </div>
   )
 }
