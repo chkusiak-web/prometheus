@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { actions, getDay, MEALS, useStore, type FoodItem, type Meal, type Plan, type State } from './store'
 import { loadFoods, searchFoods, servG, servL, shortName, tidy, type FoodRow } from './foods'
 import { Preview } from './Workout'
@@ -64,7 +64,9 @@ export default function Body() {
       <div className="mlegend"><span><i style={{ background: 'var(--ember)' }} />Today's plan</span><span><i style={{ background: '#A8201A' }} />Sore</span><span><i style={{ background: '#E6E0D8', boxShadow: 'inset 0 0 0 1.5px #B3A99D' }} />Ready</span></div>
       <button className="pill big" onClick={() => setSheet('log')}>+ Log</button>
 
-      {(sheet || muscle) && (
+      {sheet === 'food' && <FoodSheet today={today} s={s} target={st.target} close={close} />}
+
+      {sheet !== 'food' && (sheet || muscle) && (
         <div className="scrim" onClick={() => { setSheet(null); setMuscle(null) }}>
           <div className="sheet" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
             <div className="grab" />
@@ -82,7 +84,6 @@ export default function Body() {
               </>
             )}
             {sheet === 'weigh' && <WeighIn today={today} current={w} close={close} />}
-            {sheet === 'food' && <Food today={today} s={s} target={st.target} />}
             {sheet === 'plan' && <PlanSheet s={s} today={today} edit={() => setSheet('edit')} />}
             {sheet === 'workout' && <Preview first={mm.next} close={close} />}
             {sheet === 'sleep' && <SleepSheet today={today} close={close} />}
@@ -117,6 +118,76 @@ function WeighIn({ today, current, close }: { today: string; current?: number; c
       <button className="pill big" disabled={!ok}>Save</button>
       {current != null && <button type="button" className="link" onClick={() => { actions.setWeight(today, null); close() }}>Remove today's weigh-in</button>}
     </form>
+  )
+}
+
+function FoodSheet({ today, s, target, close }: { today: string; s: State; target: number; close: () => void }) {
+  const panel = useRef<HTMLDivElement>(null)
+  const drag = useRef<{ pointerId: number; startY: number } | null>(null)
+  const closing = useRef(false)
+  const dragged = useRef(false)
+
+  function movePanel(offset: number) {
+    if (panel.current) panel.current.style.transform = offset > 0 ? `translateY(${offset}px)` : ''
+  }
+
+  function dismiss() {
+    if (closing.current) return
+    closing.current = true
+    const el = panel.current
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      close()
+      return
+    }
+    el.animate(
+      [{ transform: el.style.transform || 'translateY(0)' }, { transform: 'translateY(100%)' }],
+      { duration: 220, easing: 'ease-in', fill: 'forwards' },
+    ).finished.then(close, close)
+  }
+
+  function startDrag(event: PointerEvent<HTMLButtonElement>) {
+    if (closing.current || !event.isPrimary || event.button !== 0) return
+    dragged.current = false
+    drag.current = { pointerId: event.pointerId, startY: event.clientY }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  function moveDrag(event: PointerEvent<HTMLButtonElement>) {
+    if (drag.current?.pointerId !== event.pointerId) return
+    const offset = event.clientY - drag.current.startY
+    if (Math.abs(offset) > 8) dragged.current = true
+    movePanel(offset)
+  }
+
+  function cancelDrag(event: PointerEvent<HTMLButtonElement>) {
+    if (drag.current?.pointerId !== event.pointerId) return
+    drag.current = null
+    movePanel(0)
+  }
+
+  function endDrag(event: PointerEvent<HTMLButtonElement>) {
+    if (drag.current?.pointerId !== event.pointerId) return
+    const offset = event.clientY - drag.current.startY
+    drag.current = null
+    if (offset >= 64) dismiss()
+    else movePanel(0)
+  }
+
+  return (
+    <div className="scrim" onClick={dismiss}>
+      <div ref={panel} className="sheet food-sheet" role="dialog" aria-modal="true" aria-label="Food log"
+        onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Escape') dismiss() }}>
+        <button className="food-sheet-handle" type="button" aria-label="Close food log"
+          onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={endDrag}
+          onPointerCancel={cancelDrag} onLostPointerCapture={cancelDrag}
+          onClick={event => { if (event.detail === 0 || !dragged.current) dismiss() }}>
+          <span className="grab" aria-hidden="true" />
+        </button>
+        <div className="food-sheet-content">
+          <Food today={today} s={s} target={target} />
+        </div>
+      </div>
+    </div>
   )
 }
 
