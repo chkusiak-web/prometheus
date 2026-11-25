@@ -58,14 +58,14 @@ export function nextWorkout(s: State) {
 const MUS = Object.fromEntries(LIB.map(x => [x[0], x[1]]))
 export type MStat = 'p' | 's' | 'n'
 /** Per muscle: days since last trained (finished workouts), and plan / sore / ready. */
-export function muscleMap(s: State, today: string) {
+export function muscleMap(s: State, today: string, exercises?: string[]) {
   const ago: Record<string, number> = {}
   for (const w of s.workouts || []) {
     if (!w.endedAt) continue
     const d = Math.round((+new Date(today + 'T12:00') - +new Date(w.day + 'T12:00')) / 864e5)
     for (const e of w.ex) { const m = MUS[e.name]; if (m && e.sets.some(x => x.done) && (ago[m] == null || d < ago[m])) ago[m] = d }
   }
-  const plan = new Set((WORKOUTS[nextWorkout(s)] || []).map(n => MUS[n]).filter(Boolean))
+  const plan = new Set((exercises ?? WORKOUTS[nextWorkout(s)] ?? []).map(n => MUS[n]).filter(Boolean))
   const stat = (m: string): MStat => plan.has(m) ? 'p' : ago[m] != null && ago[m] <= 1 ? 's' : 'n'
   return { ago, plan, stat, next: nextWorkout(s) }
 }
