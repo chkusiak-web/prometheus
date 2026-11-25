@@ -1,18 +1,23 @@
 import { useRef, useState } from 'react'
 import { actions, getDay, HERO_QUESTS, HERO_SPOILS, PILLARS, pillarOf, uid, useStore, type Goal, type Pillar } from './store'
 import { useNow } from './useNow'
-import { weekOf, dayLetter, lenLab } from './date'
+import { addDays, weekOf, dayLetter, lenLab } from './date'
 import { heroOf, monday, scores } from './hero'
 import { nextSlot } from './Today'
 
 type Sheet = 'hero' | 'settings' | { goal: Goal | null } | null
 const pc = (x: number) => Math.round(x * 100) + '%'
+/** Flame height in px at full size, and its scale for a score. */
+const FH = 264
+const fs = (x: number) => 0.55 + 0.45 * x
 
 export default function HeroTab() {
   const { today, mins } = useNow()
   const s = useStore(x => x)
   const sc = scores(s, today)
   const h = heroOf(s, today)
+  const last = scores(s, addDays(monday(today), -1))
+  const delta = Math.round((sc.overall - last.overall) * 100)
   const [sheet, setSheet] = useState<Sheet>(null)
   const wk = weekOf(today)
   const goals = s.goals || []
@@ -24,15 +29,24 @@ export default function HeroTab() {
       <div className="row between"><h1 className="cond pageh">Hero</h1><button className="pill" aria-label="Settings" onClick={() => setSheet('settings')}>⚙</button></div>
 
       <div className="tiles">
-        {([['Mind', sc.mind, 'var(--cobalt)'], ['Body', sc.body, 'var(--ember)'], ['Soul', sc.soul, 'var(--gold)']] as const).map(([n, v, c]) => (
-          <div key={n} className="tile score" style={{ ['--c' as string]: c }}><span className="lab">{n}</span><span className="n">{pc(v)}</span><span className="sbar"><i style={{ width: pc(v) }} /></span></div>
-        ))}
-        <button className="tile score" style={{ ['--c' as string]: 'var(--green)' }} onClick={() => setSheet('hero')}><span className="lab">Hero</span><span className="n">{sc.heroDays}/7</span><span className="sbar"><i style={{ width: pc(sc.hero) }} /></span></button>
+        {([['Mind', sc.mind, 'var(--cobalt)', pc(sc.mind)], ['Body', sc.body, 'var(--ember)', pc(sc.body)], ['Soul', sc.soul, 'var(--gold)', pc(sc.soul)], ['Hero', sc.hero, 'var(--green)', `${sc.heroDays}/7`]] as const).map(([n, v, c, badge]) => {
+          const inner = <><i className="hfill" style={{ height: `${Math.max(v, 0.06) * 100}%` }} /><span className="badge">{badge}</span><span className="cond nm">{n}</span></>
+          const st = { ['--c' as string]: c }
+          return n === 'Hero'
+            ? <button key={n} className="htile" style={st} aria-label={`Hero ${badge}`} onClick={() => setSheet('hero')}>{inner}</button>
+            : <div key={n} className="htile" style={st} aria-label={`${n} ${badge}`}>{inner}</div>
+        })}
       </div>
 
       <section className="fire" aria-label={`Overall ${pc(sc.overall)}`}>
-        <div className="flame" style={{ ['--s' as string]: String(0.35 + 0.65 * sc.overall) }} />
-        <div><div className="lab">Overall this week</div><div className="n big">{pc(sc.overall)}</div></div>
+        <div className="fire-h">
+          <span className="n big">{Math.round(sc.overall * 100)}</span>
+          <span className="fire-m"><span className="lab">Overall this week</span><span className={'delta' + (delta < 0 ? ' down' : '')}>{delta >= 0 ? '+' : ''}{delta}% vs last week</span></span>
+        </div>
+        <div className="fire-stage">
+          <i className="lastwk" style={{ bottom: `${FH * fs(last.overall)}px` }} aria-hidden />
+          <div className="flame" style={{ ['--s' as string]: String(fs(sc.overall)) }} />
+        </div>
       </section>
 
       <section className="panel">
