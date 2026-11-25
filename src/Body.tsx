@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { actions, getDay, MEALS, useStore, type FoodItem, type Meal, type Plan, type State } from './store'
-import { loadFoods, portionUnits, searchFoods, servG, servL, shortName, tidy, type FoodRow } from './foods'
+import { loadFoods, portionUnits, searchFoods, servingAmount, servL, shortName, tidy, type FoodRow } from './foods'
 import { Preview } from './Workout'
 import { addDays, fromHHMM, fromKey, toHHMM } from './date'
 import { useNow } from './useNow'
@@ -234,7 +234,7 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
       <div className="seg" role="radiogroup" aria-label="Meal">
         {MEALS.map(m => <button type="button" key={m} role="radio" aria-checked={meal === m} className={meal === m ? 'on' : ''} onClick={() => setMeal(m)}>{m}</button>)}
       </div>
-      <input className="name" type="search" placeholder={ready ? 'Search 7,448 foods: oatmeal, eggs, banana…' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
+      <input className="name" type="search" placeholder={ready ? 'Search foods: oat milk, eggs, banana…' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
       <div className="flist">
         {matchingRecent.length > 0 && (
           <>
@@ -246,7 +246,7 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
           <>
             {matchingRecent.length > 0 && <div className="lab">Food catalog</div>}
             {results.map((r, i) => (
-              <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servG(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
+              <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servingAmount(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
             ))}
           </>
         )}
@@ -265,17 +265,17 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
   )
 }
 
-function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () => void; add: (kcal: number, extra: { p: number; c: number; f: number; grams: number }) => void }) {
+function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () => void; add: (kcal: number, extra: { p: number; c: number; f: number; grams?: number }) => void }) {
   const units = portionUnits(row)
   const [unit, setUnit] = useState(0)
   const [quantity, setQuantity] = useState('1')
   const q = Number(quantity)
-  const grams = q * units[unit].grams
-  const valid = Number.isFinite(grams) && grams > 0 && grams <= 100_000
-  const at = (nutrient: number) => Math.round(nutrient * (valid ? grams : 0) / 100)
+  const amount = q * units[unit].amount
+  const valid = Number.isFinite(amount) && amount > 0 && amount <= 100_000
+  const at = (nutrient: number) => Math.round(nutrient * (valid ? amount : 0) / 100)
 
   function changeUnit(next: number) {
-    if (valid) setQuantity((grams / units[next].grams).toFixed(6).replace(/\.?0+$/, ''))
+    if (valid) setQuantity((amount / units[next].amount).toFixed(6).replace(/\.?0+$/, ''))
     setUnit(next)
   }
   return (
@@ -289,7 +289,7 @@ function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () 
       </div>
       <form onSubmit={event => {
         event.preventDefault()
-        if (valid) add(at(row[1]), { p: at(row[2]), c: at(row[3]), f: at(row[4]), grams: Math.round(grams * 100) / 100 })
+        if (valid) add(at(row[1]), { p: at(row[2]), c: at(row[3]), f: at(row[4]), grams: row[7] ? undefined : Math.round(amount * 100) / 100 })
       }}>
         <div className="portion-fields">
           <label className="field"><span className="lab">Quantity</span>
