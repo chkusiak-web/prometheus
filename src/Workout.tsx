@@ -90,7 +90,7 @@ export function Runner() {
     const more = sets.some(st => !st.done)
     const nr = { ...r, ex }
     if (!more) { const n = (() => { for (let k = 1; k <= ex.length; k++) { const i = (r.cur + k) % ex.length; if (ex[i].sets.some(st => !st.done)) return i } return -1 })(); if (n < 0) { actions.setRun(nr); setEnd(true); return } nr.cur = n }
-    actions.setRun(nr); setRest(Date.now() + REST * 1000)
+    actions.setRun(nr); setRest(Date.now() + (x.restSeconds ?? REST) * 1000)
   }
   const mins = Math.floor((Date.now() - r.startedAt) / 60000)
   const total = r.ex.reduce((t, y) => t + y.sets.filter(st => st.done).length, 0)
@@ -102,7 +102,7 @@ export function Runner() {
         <div className="lab">Workout done</div>
         <h1 className="cond">{r.name}</h1>
         <div className="strip"><div><div className="n">{mins}</div><div className="lab">Minutes</div></div><div><div className="n">{total}</div><div className="lab">Sets</div></div><div><div className="n">{vol.toLocaleString()}</div><div className="lab">lb moved</div></div></div>
-        <button className="pill big" onClick={() => actions.finishRun()}>Save workout</button>
+        <button className="pill big" disabled={r.bodySession != null && !r.ex.some(exercise => exercise.sets.some(set => set.done && set.r > 0))} onClick={() => actions.finishRun()}>Save workout</button>
         {!end || <button className="link" onClick={() => setEnd(false)}>Keep going</button>}
         <button className="link" onClick={() => { if (confirm('Discard this workout? Nothing will be saved.')) actions.setRun(null) }}>Discard</button>
       </div>
@@ -114,7 +114,8 @@ export function Runner() {
       <Library title={`Swap ${x.name}`} muscle={e[1]} onBack={() => setSwap(false)} onPick={n => {
         // Sets already done stay with the old exercise; the new one takes the remaining sets.
         const done = x.sets.filter(st => st.done), fresh = mkEx(s, n)
-        fresh.sets = fresh.sets.slice(0, Math.max(1, x.sets.length - done.length))
+        fresh.sets = Array.from({ length: Math.max(1, x.sets.length - done.length) }, (_, i) => ({ ...fresh.sets[i % fresh.sets.length] }))
+        fresh.restSeconds = x.restSeconds
         const ex = done.length ? [...r.ex.slice(0, r.cur), { ...x, sets: done }, fresh, ...r.ex.slice(r.cur + 1)] : r.ex.map((y, j) => j === r.cur ? fresh : y)
         save({ ex, cur: done.length ? r.cur + 1 : r.cur }); setSwap(false)
       }} />
@@ -144,7 +145,7 @@ export function Runner() {
           <div className="lab">{e[1]} · {e[3]} · Set {si + 1} of {x.sets.length}</div>
           <h1 className="cond">{x.name}</h1>
           {e[3] !== 'Bodyweight' && <Num label="lb" v={set.w} step={5} set={v => upd(si, { w: v })} />}
-          <Num label={unitL(e).trim()} v={set.r} step={1} set={v => upd(si, { r: v })} />
+          <Num label={unitL(e).trim() + (x.perSide ? ' per side' : '')} v={set.r} step={1} set={v => upd(si, { r: v })} />
           <div className="setdots">{x.sets.map((st, k) => <span key={k} className={st.done ? 'on' : k === si ? 'cur' : ''}>{st.done ? `${st.w ? st.w + '×' : ''}${st.r}` : k + 1}</span>)}
             <button aria-label="Add a set" onClick={() => save({ ex: r.ex.map((y, j) => j === r.cur ? { ...y, sets: [...y.sets, { ...set, done: false }] } : y) })}>+</button></div>
           <button className="pill big" onClick={doneSet}>Done set</button>
