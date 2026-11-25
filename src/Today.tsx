@@ -3,6 +3,7 @@ import { actions, dayStatus, getDay, pillarOf, useStore, type Block } from './st
 import { dayLetter, headDate, lenLab, tlab, weekOf } from './date'
 import { useNow } from './useNow'
 import BlockSheet, { type SheetMode } from './BlockSheet'
+import { TodayBodySession } from './BodyWeek'
 import DoItNow from './DoItNow'
 import { heroOf, monday } from './hero'
 
@@ -37,6 +38,7 @@ export default function Today({ onClose }: { onClose: () => void }) {
       </header>
 
       <DoItNow today={today} />
+      <TodayBodySession today={today} />
 
       {upNext ? (
         <section className="upnext" style={{ background: pillarOf(upNext.pillar).color, color: upNext.pillar === 'soul' ? 'var(--ink)' : '#fff' }}>
