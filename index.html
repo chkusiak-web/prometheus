@@ -14,6 +14,21 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap">
 <title>Prometheus</title>
+<script>
+// If the app fails to start, show why instead of a blank screen, and clear a stuck offline cache once.
+(function(){
+  var shown=false;
+  function show(msg){ if(shown)return; shown=true; var r=document.getElementById('root'); if(!r||r.childElementCount)return;
+    r.innerHTML='<div style="font:15px -apple-system,sans-serif;padding:60px 20px;color:#17171A"><b style="font-size:22px">Prometheus could not start</b><p>Screenshot this and send it to Claude:</p><pre style="white-space:pre-wrap;background:#fff;padding:12px;border-radius:10px;font-size:12px">'+String(msg).replace(/[<&]/g,function(c){return c=='<'?'&lt;':'&amp;'})+'\n\n'+navigator.userAgent+'</pre><button onclick="location.reload()" style="font:inherit;padding:12px 20px;border-radius:99px;border:0;background:#17171A;color:#fff">Try again</button></div>'; }
+  addEventListener('error',function(e){ show((e.message||'Script failed to load')+(e.filename?' @ '+e.filename+':'+e.lineno:'')+(e.target&&e.target.src?' '+e.target.src:'')) },true);
+  addEventListener('unhandledrejection',function(e){ show('Promise: '+(e.reason&&e.reason.message||e.reason)) });
+  setTimeout(function(){ var r=document.getElementById('root'); if(r&&!r.childElementCount){
+    if(!sessionStorage.getItem('prom-sw-reset')&&navigator.serviceWorker){ sessionStorage.setItem('prom-sw-reset','1');
+      navigator.serviceWorker.getRegistrations().then(function(rs){ return Promise.all(rs.map(function(x){return x.unregister()})) }).then(function(){ return window.caches?caches.keys().then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))}):0 }).then(function(){ location.reload() }); }
+    else show('The app did not start within 6 seconds (no error was reported).'); } },6000);
+})();
+</script>
+
 </head>
 <body>
 <div id="root"></div>
