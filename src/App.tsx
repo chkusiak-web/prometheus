@@ -34,8 +34,48 @@ export default function App() {
   }, [won])
   useEffect(() => { if (moment) { const t = setTimeout(() => setMoment(false), 2200); return () => clearTimeout(t) } }, [moment])
 
+  const app = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const root = app.current
+    const viewport = window.visualViewport
+    if (!root || !viewport) return
+
+    function syncKeyboardViewport() {
+      if (!root || !viewport) return
+      const focused = document.activeElement
+      const editing = focused?.matches('input, textarea') &&
+        focused.closest('.body-scrim, .exercise-swap')
+      // Ignore browser toolbar movement and leave pinch zoom under the user's control.
+      const keyboardOpen = editing && Math.abs(viewport.scale - 1) < 0.01 &&
+        document.documentElement.clientHeight - viewport.height > 100
+      root.toggleAttribute('data-keyboard-open', Boolean(keyboardOpen))
+      if (keyboardOpen) {
+        root.style.setProperty('--keyboard-viewport-top', `${Math.max(0, viewport.offsetTop)}px`)
+        root.style.setProperty('--keyboard-viewport-height', `${viewport.height}px`)
+      }
+    }
+
+    let frame = 0
+    function scheduleSync() {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(syncKeyboardViewport)
+    }
+
+    viewport.addEventListener('resize', scheduleSync)
+    viewport.addEventListener('scroll', scheduleSync)
+    root.addEventListener('focusin', scheduleSync)
+    root.addEventListener('focusout', scheduleSync)
+    return () => {
+      cancelAnimationFrame(frame)
+      viewport.removeEventListener('resize', scheduleSync)
+      viewport.removeEventListener('scroll', scheduleSync)
+      root.removeEventListener('focusin', scheduleSync)
+      root.removeEventListener('focusout', scheduleSync)
+    }
+  }, [])
+
   return (
-    <div className="app">
+    <div ref={app} className="app">
       {tab === 'today' ? <Today onClose={() => setClosing(true)} /> : tab === 'body' ? <Body /> : tab === 'soul' ? <Soul /> : tab === 'mind' ? <Mind /> : <HeroTab />}
       <nav className={'tabs' + (tab === 'soul' || tab === 'hero' ? ' dark' : '')} aria-label="Tabs">
         {TABS.map(t => (
