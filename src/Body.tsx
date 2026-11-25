@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { actions, getDay, MEALS, useStore, type FoodItem, type Meal, type Plan, type State } from './store'
-import { loadFoods, portionUnits, searchFoods, servG, servL, shortName, tidy, type FoodRow } from './foods'
+import FoodScanner from './FoodScanner'
+import { isBarcode, loadFoods, lookupBarcode, portionUnits, searchBrandedFoods, searchFoods, servingAmount, servL, shortName, tidy, type FoodRow } from './foods'
 import { Preview } from './Workout'
 import { addDays, fromHHMM, fromKey, toHHMM } from './date'
 import { useNow } from './useNow'
@@ -199,21 +200,51 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
   const [hit, setHit] = useState<FoodRow | null>(null)
   const [ready, setReady] = useState(false)
   const [quick, setQuick] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [branded, setBranded] = useState<{ query: string; rows: FoodRow[]; failed?: boolean }>()
+  const scanCode = useCallback((code: string) => {
+    setQ(code)
+    setScanning(false)
+  }, [])
   const [name, setName] = useState(''), [k, setK] = useState('')
   useEffect(() => { loadFoods().then(() => setReady(true)).catch(() => setReady(false)) }, [])
   const results = useMemo(() => ready && q.trim() ? searchFoods(q) : [], [q, ready])
   const kn = parseInt(k, 10)
   const query = q.trim()
+  const barcode = isBarcode(query)
+  useEffect(() => {
+    if (scanning || query.length < 2) return
+    let current = true
+    const timer = window.setTimeout(async () => {
+      try {
+        const rows = barcode ? [await lookupBarcode(query)].filter((row): row is FoodRow => row !== undefined)
+          : await searchBrandedFoods(query)
+        if (current) {
+          setBranded({ query, rows })
+          if (barcode && rows[0]) setHit(rows[0])
+        }
+      } catch {
+        if (current) setBranded({ query, rows: [], failed: true })
+      }
+    }, barcode ? 0 : 220)
+    return () => { current = false; window.clearTimeout(timer) }
+  }, [barcode, query, scanning])
+  const catalogProducts = branded?.query === query ? branded.rows : []
+  const legacyProducts = ready && query && !barcode ? searchFoods(query, true) : []
+  const productResults = [...catalogProducts, ...legacyProducts]
+  const productsPending = query.length >= 2 && branded?.query !== query
   const searchKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
   const key = searchKey(query)
   // Recent: the last distinct foods you logged, newest first.
   const recent = useMemo(() => {
     const seen = new Set<string>(), out: FoodItem[] = []
-    for (const d of Object.keys(s.food || {}).sort().reverse()) for (const f of [...(s.food![d] || [])].reverse()) { if (!seen.has(f.name)) { seen.add(f.name); out.push(f) } if (out.length >= 8) return out }
+    for (const d of Object.keys(s.food || {}).sort().reverse()) for (const f of [...(s.food![d] || [])].reverse()) { if (!seen.has(f.name)) { seen.add(f.name); out.push(f) } }
     return out
   }, [s.food])
 
-  const matchingRecent = key ? recent.filter(item => searchKey(item.name).includes(key)) : recent
+  const matchingRecent = (key ? recent.filter(item => searchKey(item.name).includes(key)) : recent).slice(0, 8)
+
+  if (scanning) return <FoodScanner onCode={scanCode} onBack={() => setScanning(false)} />
 
   if (hit) return <Portion row={hit} meal={meal} back={() => setHit(null)} add={(kcal, extra) => { actions.addFood(today, meal, shortName(hit[0]), kcal, extra); setHit(null); setQ('') }} />
 
@@ -234,7 +265,8 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
       <div className="seg" role="radiogroup" aria-label="Meal">
         {MEALS.map(m => <button type="button" key={m} role="radio" aria-checked={meal === m} className={meal === m ? 'on' : ''} onClick={() => setMeal(m)}>{m}</button>)}
       </div>
-      <input className="name" type="search" placeholder={ready ? 'Search 7,448 foods: oatmeal, eggs, banana…' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
+      <button className="pill ghost" onClick={() => setScanning(true)}>Scan barcode</button>
+      <input className="name" type="search" placeholder={ready ? 'Search a food or enter a barcode' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
       <div className="flist">
         {matchingRecent.length > 0 && (
           <>
@@ -244,13 +276,28 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
         )}
         {query && results.length > 0 && (
           <>
-            {matchingRecent.length > 0 && <div className="lab">Food catalog</div>}
+            <div className="lab">Basic foods</div>
             {results.map((r, i) => (
-              <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servG(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
+              <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servingAmount(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
             ))}
           </>
         )}
-        {query && !results.length && !matchingRecent.length && <p className="small">{ready ? 'No matches. Try fewer words, or use Quick add.' : 'Loading…'}</p>}
+        {productResults.length > 0 && (
+          <>
+            <div className="lab">Branded foods</div>
+            {productResults.map((row, index) => (
+              <button key={index} className="frow" onClick={() => setHit(row)}><span><b>{tidy(row[0])}</b><span className="small">{servL(row)} · {Math.round(row[1] * servingAmount(row) / 100)} kcal</span></span><span aria-hidden>›</span></button>
+            ))}
+          </>
+        )}
+        {query && !results.length && !matchingRecent.length && !productResults.length && (
+          <p className="small" role="status">
+            {productsPending || !ready ? 'Searching…' : branded?.query === query && branded.failed
+              ? 'Barcode lookup is unavailable. Try searching by product name.'
+              : barcode ? 'No product found for this barcode. Search by name or use Quick Add.'
+                : 'No matches. Try fewer words, or use Quick Add.'}
+          </p>
+        )}
       </div>
       {quick ? (
         <form className="addfood" onSubmit={e => { e.preventDefault(); if (kn > 0) { actions.addFood(today, meal, name.trim() || meal, kn); setName(''); setK(''); setQuick(false) } }}>
@@ -265,17 +312,17 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
   )
 }
 
-function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () => void; add: (kcal: number, extra: { p: number; c: number; f: number; grams: number }) => void }) {
+function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () => void; add: (kcal: number, extra: { p: number; c: number; f: number; grams?: number }) => void }) {
   const units = portionUnits(row)
   const [unit, setUnit] = useState(0)
   const [quantity, setQuantity] = useState('1')
   const q = Number(quantity)
-  const grams = q * units[unit].grams
-  const valid = Number.isFinite(grams) && grams > 0 && grams <= 100_000
-  const at = (nutrient: number) => Math.round(nutrient * (valid ? grams : 0) / 100)
+  const amount = q * units[unit].amount
+  const valid = Number.isFinite(amount) && amount > 0 && amount <= 100_000
+  const at = (nutrient: number) => Math.round(nutrient * (valid ? amount : 0) / 100)
 
   function changeUnit(next: number) {
-    if (valid) setQuantity((grams / units[next].grams).toFixed(6).replace(/\.?0+$/, ''))
+    if (valid) setQuantity((amount / units[next].amount).toFixed(6).replace(/\.?0+$/, ''))
     setUnit(next)
   }
   return (
@@ -289,7 +336,7 @@ function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () 
       </div>
       <form onSubmit={event => {
         event.preventDefault()
-        if (valid) add(at(row[1]), { p: at(row[2]), c: at(row[3]), f: at(row[4]), grams: Math.round(grams * 100) / 100 })
+        if (valid) add(at(row[1]), { p: at(row[2]), c: at(row[3]), f: at(row[4]), grams: row[7] ? undefined : Math.round(amount * 100) / 100 })
       }}>
         <div className="portion-fields">
           <label className="field"><span className="lab">Quantity</span>

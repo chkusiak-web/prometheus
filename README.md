@@ -34,3 +34,20 @@ npm install
 npm run dev
 npm run build
 ```
+
+## Food catalog
+
+The Pages build generates the food catalog from USDA FoodData Central FNDDS and
+U.S. Branded Foods releases. The deploy workflow pins the source ZIPs. To build
+the same files locally, download those two ZIPs and run:
+
+```sh
+python3 scripts/build_food_catalog.py survey.zip branded.zip public/catalog
+```
+
+Food search shows previously logged foods first, then basic foods, then branded
+products. Enter a UPC or use Scan barcode to look up a product and choose a
+portion. Barcode coverage depends on USDA product records. Camera access is
+requested when the scanner opens. Camera frames are decoded locally.
+
+Source: [USDA FoodData Central](https://fdc.nal.usda.gov/download-datasets/).
