@@ -6,7 +6,7 @@ import BlockSheet, { type SheetMode } from './BlockSheet'
 import DoItNow from './DoItNow'
 import { heroOf, monday } from './hero'
 
-const HOUR = 72 // px per hour on the agenda
+const HOUR = 96 // px per hour on the agenda, as in the prototype
 
 const Check = () => <svg width="18" height="18" viewBox="0 0 12 12"><path d="M2 6.5 5 9l5-6" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
 
@@ -14,7 +14,6 @@ export default function Today({ onClose }: { onClose: () => void }) {
   const { today, mins } = useNow()
   const days = useStore(s => s.days)
   const day = getDay({ v: 1, days }, today)
-  const st = dayStatus(day)
   const [sheet, setSheet] = useState<SheetMode | null>(null)
 
   const upNext = day.blocks.find(b => !b.done && b.start + b.len > mins) || day.blocks.find(b => !b.done)
@@ -31,16 +30,10 @@ export default function Today({ onClose }: { onClose: () => void }) {
           {weekOf(today).map(k => {
             const d = days[k], won = d ? dayStatus(d).won : false
             const cls = k === today ? (won ? 'won' : 'now') : k > today ? 'future' : won ? 'won' : d?.blocks.length ? 'lost' : 'empty'
-            return <div key={k} className={'wd ' + cls} aria-label={`${headDate(k)}${won ? ', won' : ''}`}>{won ? <Check /> : dayLetter(k)}</div>
+            return <div key={k} className={'wd ' + cls} aria-label={`${headDate(k)}${won ? ', won' : cls === 'lost' ? ', missed' : ''}`}>{won ? <Check /> : cls === 'lost' ? '✕' : dayLetter(k)}</div>
           })}
         </div>
         <HeroStrip today={today} />
-        <div className="pillars" aria-label="Today's progress">
-          {(['mind', 'body', 'soul'] as const).map(p => (
-            <span key={p} className={'pchip' + (st.has[p] ? ' on' : '')} style={{ ['--c' as string]: pillarOf(p).color }}>{pillarOf(p).name}</span>
-          ))}
-          <span className="pcount">{st.won ? 'Day won' : `${Math.min(st.count, 3)} of 3`}</span>
-        </div>
       </header>
 
       <DoItNow today={today} />
@@ -49,9 +42,9 @@ export default function Today({ onClose }: { onClose: () => void }) {
         <section className="upnext" style={{ background: pillarOf(upNext.pillar).color, color: upNext.pillar === 'soul' ? 'var(--ink)' : '#fff' }}>
           <button className="un-main" onClick={() => setSheet({ kind: 'actions', id: upNext.id })}>
             <div className="lab">Up next · {tlab(upNext.start, true)} · {lenLab(upNext.len)}</div>
-            <div className={"cond un-name" + (upNext.name.length > 22 ? " long" : "")}>{upNext.name}</div>
+            <FitName text={upNext.name} />
           </button>
-          <button className="un-check" aria-label={`Mark ${upNext.name} done`} onClick={() => actions.toggle(today, upNext.id)}><Check /></button>
+          <button className="un-check" style={{ color: pillarOf(upNext.pillar).color }} aria-label={`Mark ${upNext.name} done`} onClick={() => actions.toggle(today, upNext.id)}><Check /></button>
         </section>
       ) : (
         <section className="upnext empty">
@@ -69,7 +62,7 @@ export default function Today({ onClose }: { onClose: () => void }) {
 
       <section className="agenda">
         <div className="ag-head"><div className="lab">Today</div><button className="pill" onClick={() => setSheet({ kind: 'add', day: today, start: nextSlot(day.blocks, mins) })}>+ Today</button></div>
-        <Timeline blocks={day.blocks} mins={mins} onTap={b => setSheet({ kind: 'actions', id: b.id })} onToggle={b => actions.toggle(today, b.id)} />
+        <Timeline blocks={day.blocks} mins={mins} onTap={b => setSheet({ kind: 'actions', id: b.id })} />
       </section>
 
       {sheet && <BlockSheet day={today} mode={sheet} setMode={setSheet} />}
@@ -84,14 +77,14 @@ export function nextSlot(blocks: Block[], mins: number) {
   return Math.min(s, 23 * 60 + 45)
 }
 
-function Timeline({ blocks, mins, onTap, onToggle }: { blocks: Block[]; mins: number; onTap: (b: Block) => void; onToggle: (b: Block) => void }) {
+function Timeline({ blocks, mins, onTap }: { blocks: Block[]; mins: number; onTap: (b: Block) => void }) {
   const first = Math.min(7 * 60, ...blocks.map(b => b.start), mins - 60)
   const last = Math.max(22 * 60, ...blocks.map(b => b.start + b.len), mins + 60)
   const h0 = Math.max(0, Math.floor(first / 60)), h1 = Math.min(28, Math.ceil(last / 60))
   const y = (m: number) => (m - h0 * 60) / 60 * HOUR
   const ref = useRef<HTMLDivElement>(null)
   // Open scrolled to an hour before now.
-  useEffect(() => { ref.current?.scrollTo({ top: Math.max(0, y(mins) - HOUR) }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { ref.current?.scrollTo({ top: Math.max(0, y(mins - 60) - 6) }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Side-by-side lanes for overlapping blocks.
   const lanes: { b: Block; lane: number; of: number }[] = []
@@ -115,11 +108,10 @@ function Timeline({ blocks, mins, onTap, onToggle }: { blocks: Block[]; mins: nu
         {lanes.map(({ b, lane, of }) => {
           const c = pillarOf(b.pillar).color
           return (
-            <div key={b.id} className={'blk' + (b.done ? ' done' : '') + (b.len < 30 ? ' slim' : '')}
-              style={{ top: y(b.start) + 1, height: Math.max(22, b.len / 60 * HOUR - 3), left: `calc(48px + (100% - 52px) * ${lane / of})`, width: `calc((100% - 52px) / ${of} - 4px)`, ['--c' as string]: c, color: b.pillar === 'soul' && !b.done ? 'var(--ink)' : undefined }}>
-              <button className="blk-main" onClick={() => onTap(b)}><span className="blk-name">{b.name}</span><span className="blk-len">{lenLab(b.len)}</span></button>
-              <button className="blk-chk" aria-label={(b.done ? 'Undo ' : 'Done: ') + b.name} onClick={() => onToggle(b)}>{b.done ? <Check /> : <i />}</button>
-            </div>
+            <button key={b.id} className={'blk' + (b.done ? ' done' : '') + (b.len < 30 ? ' slim' : '')} onClick={() => onTap(b)} aria-label={`${b.name}, ${tlab(b.start)}, ${lenLab(b.len)}${b.done ? ', done' : ''}`}
+              style={{ top: y(b.start) + 1.5, height: Math.max(22, b.len / 60 * HOUR - 3), left: `calc(40px + (100% - 40px) * ${lane / of})`, width: `calc((100% - 40px) / ${of} - ${of > 1 ? 4 : 0}px)`, ['--c' as string]: c, color: b.pillar === 'soul' ? 'var(--ink)' : undefined }}>
+              <span className="blk-name">{b.name}</span><span className="blk-len">{lenLab(b.len)}</span>
+            </button>
           )
         })}
       </div>
@@ -135,4 +127,15 @@ function HeroStrip({ today }: { today: string }) {
       <span className="hs-c">{h.done[i] ? '✓' : ''}</span><b>Hero</b><span className="hs-n">{h.name}</span><span className="hs-k">{n} of 7</span>
     </button>
   )
+}
+
+/** Up next title in condensed caps: 46px, shrinking (to 30px) until it fits on two lines, as in the prototype. */
+function FitName({ text }: { text: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const n = ref.current; if (!n) return
+    let f = 46; n.style.fontSize = f + 'px'
+    while (n.scrollHeight > f * 0.9 * 2 + 4 && f > 30) { f -= 2; n.style.fontSize = f + 'px' }
+  }, [text])
+  return <div ref={ref} className="cond un-name">{text}</div>
 }
