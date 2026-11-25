@@ -388,3 +388,14 @@ button.htile:active{transform:scale(.98)}
 .food-sheet-content > *{flex-shrink:0}
 .food-sheet-content .flist{max-height:none;overflow:visible}
 @keyframes food-sheet-in{from{transform:translateY(100%)}}
+
+/* The keyboard shrinks the visual viewport on iOS while the layout viewport can stay full height. */
+.app[data-keyboard-open] :is(.body-scrim,.exercise-swap){
+  top:var(--keyboard-viewport-top);
+  bottom:auto;
+  height:var(--keyboard-viewport-height);
+}
+.app[data-keyboard-open] .body-scrim .sheet{max-height:100%;padding-bottom:12px}
+.app[data-keyboard-open] .food-sheet{height:100%}
+.app[data-keyboard-open] .exercise-swap{padding-block:12px}
+.app[data-keyboard-open] :is(.body-scrim,.exercise-swap) .exlist.scroll{max-height:none;overflow:visible}
