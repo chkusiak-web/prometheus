@@ -36,7 +36,7 @@ export default function Mind() {
 }
 
 function Wheel({ done, onTap }: { done: Record<string, number>; onTap: (a: string) => void }) {
-  const R0 = 46, R1 = 150, n = AREAS.length, gap = 0.035
+  const R0 = 30, R1 = 150, n = AREAS.length, gap = 0.03
   const arc = (r: number, a: number) => [r * Math.cos(a), r * Math.sin(a)]
   const wedge = (i: number, r1: number) => {
     const a0 = (i / n) * 2 * Math.PI - Math.PI / 2 + gap, a1 = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2 - gap
@@ -46,41 +46,33 @@ function Wheel({ done, onTap }: { done: Record<string, number>; onTap: (a: strin
   return (
     <svg className="wheel" viewBox="-160 -160 320 320" role="group" aria-label="Mind areas this week">
       {AREAS.map((a, i) => {
-        const f = Math.min(1, (done[a.n] || 0) / a.goal), mid = ((i + 0.5) / n) * 2 * Math.PI - Math.PI / 2, [lx, ly] = arc(100, mid)
+        const f = Math.min(1, (done[a.n] || 0) / a.goal)
         return (
           <g key={a.n} role="button" tabIndex={0} aria-label={`${a.n}: ${done[a.n] || 0} of ${a.goal} this week`} className="wedge" onClick={() => onTap(a.n)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(a.n) } }}>
-            <path d={wedge(i, R1)} fill={a.color} opacity={0.16} />
-            {f > 0 && <path d={wedge(i, R0 + (R1 - R0) * f)} fill={a.color} />}
-            <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className={f > 0.55 ? 'on' : ''}>{a.n}</text>
+            <title>{a.n}</title>
+            <path d={wedge(i, R1)} fill={a.color} opacity={0.22} />
+            <path className="wfill" d={wedge(i, R0 + (R1 - R0) * Math.max(f, 0.1))} fill={a.color} />
           </g>
         )
       })}
-      <text x={0} y={-4} textAnchor="middle" className="wc">{Object.values(done).reduce((a, b) => a + b, 0)}</text>
-      <text x={0} y={14} textAnchor="middle" className="wl">this week</text>
     </svg>
   )
 }
 
-/** Quadrant layout: x = unpleasant → pleasant, y = high → low energy. */
-const QPOS: Record<string, [number, number]> = { Wired: [-1, -1], Bright: [1, -1], Spent: [-1, 1], Easy: [1, 1] }
-const pt = (c: { corner: string; stress: number; drive: number }) => { const [x, y] = QPOS[c.corner] || [0, 0]; const k = 0.35 + (Math.max(c.stress, c.drive) - 1) / 4 * 0.55; return [x * k, y * k] }
-
 function EmotionRing({ s, today, onCheck }: { s: State; today: string; onCheck: () => void }) {
-  const all = s.checkins || [], todays = all.filter(c => c.day === today)
-  const avg = all.length ? all.map(pt).reduce((a, p) => [a[0] + p[0] / all.length, a[1] + p[1] / all.length], [0, 0]) : null
+  const todays = (s.checkins || []).filter(c => c.day === today)
   const last = todays[todays.length - 1]
+  const hit = new Set(todays.map(c => c.corner))
   return (
     <section className="emo">
-      <div className="ring">
-        {CORNERS.map(c => <span key={c.n} style={{ background: c.color, color: c.ink ? 'var(--ink)' : '#fff' }}>{c.n}</span>)}
-        {todays.map((c, i) => { const [x, y] = pt(c); return <i key={i} className="edot" style={{ left: `${50 + x * 30}%`, top: `${50 + y * 30}%` }} /> })}
-        {avg && <i className="edot avg" style={{ left: `${50 + avg[0] * 30}%`, top: `${50 + avg[1] * 30}%` }} aria-label="All-time average" />}
+      <div className="ring-wrap">
+        {CORNERS.map(c => <span key={c.n} className={'rlab ' + c.n.toLowerCase()}>{c.n}</span>)}
+        <div className="ring">
+          {CORNERS.map(c => <i key={c.n} className={'rdot ' + c.n.toLowerCase() + (hit.has(c.n) ? ' on' : '')} />)}
+          <button className="ring-btn" onClick={onCheck}><span className="plus">+</span><span className="lab">Check in</span></button>
+        </div>
       </div>
-      <div className="emo-r">
-        <div className="lab">Feelings</div>
-        <div className="small">{last ? `Last: ${last.word} · stress ${last.stress} · drive ${last.drive}` : todays.length ? '' : 'No check-in yet today'}</div>
-        <button className="pill" onClick={onCheck}>+ Check in</button>
-      </div>
+      <div className="small emo-last">{last ? `Last: ${last.word} · stress ${last.stress} · drive ${last.drive}` : 'No check-in yet today'}</div>
     </section>
   )
 }
