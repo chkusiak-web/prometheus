@@ -20,6 +20,11 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Build USDA food catalog
+        run: |
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/survey.zip" https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_survey_food_json_2024-10-31.zip
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/branded.zip" https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_branded_food_json_2026-10-29.zip
+          python3 scripts/build_food_catalog.py "$RUNNER_TEMP/survey.zip" "$RUNNER_TEMP/branded.zip" public/catalog
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3

@@ -13,12 +13,17 @@ const OAT_MILKS: FoodRow[] = [
 ]
 
 let FOODS: FoodRow[] | null = null, WORDS: string[][] = []
+let legacyCount = 0
 let loading: Promise<FoodRow[]> | null = null
 export function loadFoods() {
   if (FOODS) return Promise.resolve(FOODS)
-  return loading ||= fetch('foods.json').then(r => r.json()).then((d: FoodRow[]) => {
-    FOODS = [...OAT_MILKS, ...d]; WORDS = FOODS.map(r => r[0].replace(/\(Includes foods[^)]*\)/, '').toLowerCase().split(/[^a-z0-9%]+/).filter(Boolean)); return FOODS
-  })
+  return loading ||= Promise.all([
+    fetchCatalog<FoodRow[]>('foods.json'),
+    fetchCatalog<FoodRow[]>('catalog/survey.json').catch(() => []),
+  ]).then(([legacy, survey]) => {
+    legacyCount = legacy.length
+    FOODS = [...legacy, ...survey]; WORDS = FOODS.map(r => r[0].replace(/\(Includes foods[^)]*\)/, '').toLowerCase().split(/[^a-z0-9%]+/).filter(Boolean)); return FOODS
+  }).catch(error => { loading = null; throw error })
 }
 
 const PROC = new Set(['breaded', 'fried', 'frozen', 'prepackaged', 'dehydrated', 'canned', 'mix', 'restaurant', 'fast', 'babyfood', 'imitation', 'dry', 'dried', 'powder', 'powdered', 'sifted', 'duck', 'goose', 'quail', 'substitute'])
@@ -26,9 +31,11 @@ const SYN: Record<string, string> = { oatmeal: 'oats', rice: 'rice white long-gr
 const BRAND = /^[A-Z0-9'&.\- ]{3,},/
 
 /** Every word must start a word in the name. Common, whole forms rank first; brands and processed forms sink. */
-export function searchFoods(q: string): FoodRow[] {
+const normalizeQuery = (q: string) => q.toLowerCase().trim().replace(/\boat[-\s]*milk\b/g, 'oat milk').replace(/\s+/g, ' ')
+
+export function searchFoods(q: string, branded = false): FoodRow[] {
   if (!FOODS) return []
-  q = q.toLowerCase().trim().replace(/\boat[-\s]*milk\b/g, 'oat milk').replace(/\s+/g, ' ')
+  q = normalizeQuery(q)
   q = SYN[q] || q
   const qs = q.split(/[^a-z0-9%]+/).filter(Boolean).map(w => w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)
   if (!qs.length) return []
@@ -37,6 +44,7 @@ export function searchFoods(q: string): FoodRow[] {
     const W = WORDS[i]
     if (!qs.every(w => W.some(x => x.startsWith(w)))) continue
     const r = FOODS[i]
+    if ((i < legacyCount && BRAND.test(r[0])) !== branded) continue
     const sc = W.length + (BRAND.test(r[0]) ? 20 : 0) + W.filter(x => PROC.has(x)).length * 3 - (W[0].startsWith(qs[0]) ? 6 : 0)
       - qs.filter(w => W.includes(w)).length * 2 - (/^1 (large|medium|small|egg|piece|slice|fruit|item|whole)/i.test(r[5] || '') ? 5 : 0)
       - (W[0] === qs[0] || W[0] === qs[0] + 's' ? 8 : 0) // "Bananas, raw" for banana
@@ -57,7 +65,7 @@ export const servL = (r: FoodRow) => r[5] || '100 g'
 export function portionUnits(row: FoodRow) {
   if (row[7]) return [
     { label: 'Servings', amount: row[7] },
-    { label: 'Cups', amount: row[7] },
+    ...cupMeasure(row, row[7]),
     { label: 'Milliliters (mL)', amount: 1 },
   ]
 
@@ -66,12 +74,56 @@ export function portionUnits(row: FoodRow) {
   if (!Number.isFinite(row[6]) || row[6] <= 0) return units
 
   const serving = servL(row)
-  const cup = serving.match(/^(\d+(?:\.\d+)?) cups?\b/i)
-  if (cup && Number(cup[1]) > 0) units.push({ label: 'Cups', amount: servingGrams / Number(cup[1]) })
+  units.push(...cupMeasure(row, servingGrams))
 
   const ml = serving.match(/^(\d+(?:\.\d+)?)\s*m[lL]\b/i)
   const fluidOunces = serving.match(/(?:^|\()(\d+(?:\.\d+)?)\s*fl\s*oz\b/i)
   const volumeMl = ml ? Number(ml[1]) : fluidOunces ? Number(fluidOunces[1]) * 29.5735295625 : 0
   if (volumeMl > 0) units.push({ label: 'Milliliters (mL)', amount: servingGrams / volumeMl })
   return units
+}
+
+function cupMeasure(row: FoodRow, serving: number) {
+  const cups = Number(servL(row).match(/^(\d+(?:\.\d+)?) cups?\b/i)?.[1])
+  return cups > 0 ? [{ label: 'Cups', amount: serving / cups }] : []
+}
+
+async function fetchCatalog<T>(path: string): Promise<T> {
+  const response = await fetch(path)
+  if (!response.ok) throw new Error(`Unable to load ${path}`)
+  return response.json() as Promise<T>
+}
+
+function matchesWords(row: FoodRow, terms: string[]) {
+  const words = normalizeQuery(row[0]).match(/[a-z0-9]+/g) || []
+  return terms.every(term => words.some(word => word.startsWith(term)))
+}
+
+export const isBarcode = (query: string) => /^(?:\d{8}|\d{12,14})$/.test(query)
+
+export async function lookupBarcode(query: string) {
+  if (!isBarcode(query)) return undefined
+  const code = query.replace(/^0+/, '')
+  if (!code) return undefined
+  const response = await fetch(`catalog/barcode/${code.slice(0, 3)}.json`)
+  if (response.status === 404) return undefined
+  if (!response.ok) throw new Error('Barcode lookup failed')
+  const rows = await response.json() as Record<string, FoodRow>
+  return rows[code]
+}
+
+let lastShard: { prefix: string; rows: FoodRow[] } | undefined
+
+export async function searchBrandedFoods(query: string): Promise<FoodRow[]> {
+  const terms = normalizeQuery(query).match(/[a-z0-9]+/g) || []
+  const longest = [...terms].sort((a, b) => b.length - a.length)[0]
+  if (!longest || longest.length < 3) return []
+  const prefix = longest.slice(0, 3)
+  const fallback = OAT_MILKS.filter(row => matchesWords(row, terms))
+  const rows = lastShard?.prefix === prefix ? lastShard.rows
+    : await fetchCatalog<FoodRow[]>(`catalog/search/${prefix}.json`).catch(() => [])
+  if (rows.length) lastShard = { prefix, rows }
+  const hits = rows.filter(row => matchesWords(row, terms))
+  hits.sort((a, b) => a[0].length - b[0].length || a[0].localeCompare(b[0]))
+  return (hits.length ? hits : fallback).slice(0, 30)
 }
