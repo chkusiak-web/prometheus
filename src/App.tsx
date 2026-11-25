@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import Today from './Today'
 import CloseDay from './CloseDay'
 import Later from './Later'
+import Body from './Body'
 import { useNow } from './useNow'
 import { dayStatus, getDay, useStore } from './store'
 
@@ -32,7 +33,7 @@ export default function App() {
 
   return (
     <div className="app">
-      {tab === 'today' ? <Today onClose={() => setClosing(true)} /> : <Later tab={TABS.find(t => t.id === tab)!.label} />}
+      {tab === 'today' ? <Today onClose={() => setClosing(true)} /> : tab === 'body' ? <Body /> : <Later tab={TABS.find(t => t.id === tab)!.label} />}
       <nav className="tabs" aria-label="Tabs">
         {TABS.map(t => (
           <button key={t.id} className={'tab' + (tab === t.id ? ' on' : '')} aria-label={t.label} aria-current={tab === t.id} onClick={() => setTab(t.id)}>{t.icon}</button>

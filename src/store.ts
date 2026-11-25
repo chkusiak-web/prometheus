@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { nowInfo } from './date'
 
 export type Pillar = 'mind' | 'body' | 'soul' | 'todo'
 export const PILLARS: { id: Pillar; name: string; color: string }[] = [
@@ -11,7 +12,29 @@ export const pillarOf = (p: Pillar) => PILLARS.find(x => x.id === p)!
 
 export interface Block { id: string; name: string; pillar: Pillar; start: number; len: number; done: boolean; doneAt?: number }
 export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; closedAt?: number }
-export interface State { v: 1; days: Record<string, Day> }
+export interface FoodItem { id: string; meal: Meal; name: string; kcal: number }
+export type Meal = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
+export const MEALS: Meal[] = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
+export interface Plan { goal: number; pace: number; workouts: number; maint: number; floor: number; small: string; big: string; wh: string[] }
+export interface Withhold { missed: ('weigh-in' | 'calories')[]; task: string; done: boolean }
+export interface State {
+  v: 1
+  days: Record<string, Day>
+  /** First day the app was used; missed-log checks start from here. */
+  since?: string
+  weights?: Record<string, number>
+  food?: Record<string, FoodItem[]>
+  plan?: Plan
+  withholds?: Record<string, Withhold>
+}
+
+export const DEFAULT_PLAN: Plan = {
+  goal: 200, pace: 1.5, workouts: 4, maint: 3150, floor: 1800, small: 'Coffee treat', big: '$25 to the gear fund',
+  wh: ['15 pushups', 'Clean the bathroom', '20-minute walk', '50 squats', 'Take out all the trash', 'Do the dishes', '10-minute stretch', 'Wipe down the kitchen', 'Put away the laundry', "Prep tomorrow's lunch"],
+}
+export const planOf = (s: State) => s.plan || DEFAULT_PLAN
+/** Daily food target = maintenance minus pace x 500, never under the floor. */
+export const kcalTarget = (p: Plan) => Math.max(p.floor, Math.round(p.maint - p.pace * 500))
 
 const KEY = 'prometheus:v1'
 const EMPTY_DAY: Day = { blocks: [] }
@@ -25,6 +48,7 @@ function load(): State {
 }
 
 let state = load()
+if (!state.since) { state = { ...state, since: nowInfo().today }; localStorage.setItem(KEY, JSON.stringify(state)) }
 const subs = new Set<() => void>()
 function set(next: State) {
   state = next
@@ -79,6 +103,19 @@ export const actions = {
   closeDay(k: string, rating: number, triangle: string[]) {
     patchDay(k, d => ({ ...d, rating, triangle, closedAt: Date.now() }))
   },
+  setWeight(k: string, lb: number | null) {
+    const w = { ...state.weights }
+    if (lb == null) delete w[k]; else w[k] = Math.round(lb * 10) / 10
+    set({ ...state, weights: w })
+  },
+  addFood(k: string, meal: Meal, name: string, kcal: number) {
+    set({ ...state, food: { ...state.food, [k]: [...(state.food?.[k] || []), { id: uid(), meal, name, kcal: Math.round(kcal) }] } })
+  },
+  removeFood(k: string, id: string) {
+    set({ ...state, food: { ...state.food, [k]: (state.food?.[k] || []).filter(f => f.id !== id) } })
+  },
+  setPlan(p: Plan) { set({ ...state, plan: p }) },
+  setWithhold(k: string, w: Withhold) { set({ ...state, withholds: { ...state.withholds, [k]: w } }) },
   importAll(json: string) {
     const s = JSON.parse(json)
     if (!s || s.v !== 1 || typeof s.days !== 'object') throw new Error('Not a Prometheus backup')
