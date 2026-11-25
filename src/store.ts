@@ -64,6 +64,9 @@ export const hasCompletedSets = (workout: Workout) =>
 export const bodySessionDone = (s: State, index: number) =>
   (s.workouts || []).some(workout => workout.bodySession === index && hasCompletedSets(workout))
 
+export const plannedLiftOn = (s: State, day: string) =>
+  (s.workouts || []).some(workout => workout.bodySession != null && workout.day === day && hasCompletedSets(workout))
+
 const KEY = 'prometheus:v1'
 const EMPTY_DAY: Day = { blocks: [] }
 
@@ -153,10 +156,6 @@ export const actions = {
   setTriangle(k: string, t: string[]) { patchDay(k, d => ({ ...d, triangle: t })) },
   setWater(k: string, n: number) { patchDay(k, d => ({ ...d, water: Math.max(0, Math.min(12, n)) })) },
   setSleep(k: string, sl: Sleep | undefined) { patchDay(k, d => ({ ...d, sleep: sl })) },
-  startBodyWeek(today: string) {
-    if (state.bodyWeek) return
-    set({ ...state, plan: { ...planOf(state), workouts: 5 }, bodyWeek: Array.from({ length: 7 }, (_, index) => addDays(today, index)) })
-  },
   moveBodySession(index: number, destination: string, today: string) {
     const dates = state.bodyWeek
     if (!dates || !dates[index] || destination < today) return
@@ -170,8 +169,19 @@ export const actions = {
   },
   startBodySession(index: number, name: string, ex: WEx[]) {
     const { today } = nowInfo()
-    if (state.run || state.bodyWeek?.[index] !== today || bodySessionDone(state, index)) return
-    set({ ...state, run: { id: uid(), bodySession: index, day: today, startedAt: Date.now(), name, ex, cur: 0 } })
+    if (state.run || !ex.length || bodySessionDone(state, index) || plannedLiftOn(state, today)) return false
+    const dates = state.bodyWeek ? [...state.bodyWeek] : Array.from({ length: 7 }, (_, i) => addDays(today, i))
+    if (!dates[index]) return false
+    const other = dates.indexOf(today)
+    if (other >= 0 && other !== index) dates[other] = dates[index]
+    dates[index] = today
+    set({
+      ...state,
+      bodyWeek: dates,
+      plan: state.bodyWeek ? state.plan : { ...planOf(state), workouts: 5 },
+      run: { id: uid(), bodySession: index, day: today, startedAt: Date.now(), name, ex, cur: 0 },
+    })
+    return true
   },
   setRun(r: Workout | null) { set({ ...state, run: r }) },
   /** Saves the workout and adds a done Body block for it, so it counts toward the day. */

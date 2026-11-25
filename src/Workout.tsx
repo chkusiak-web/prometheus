@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { actions, uid, useStore, type State, type WEx, type Workout } from './store'
 import { LIB, WORKOUTS, type Ex } from './exercises'
 import { nowInfo } from './date'
+import { suggestedBodySession } from './BodyWeek'
 
 const EXR = (n: string): Ex => LIB.find(x => x[0] === n) || [n, 'Abs', [], 'Bodyweight', 0, 10, '']
 const unitL = (e: Ex) => e[6] === 's' ? 's' : e[6] === 'm' ? ' m' : ' reps'
@@ -25,16 +26,32 @@ const mkEx = (s: State, name: string): WEx => { const p = prefill(s, name); retu
 
 export function Preview({ close, first }: { close: () => void; first?: string }) {
   const s = useStore(x => x)
-  const [name, setName] = useState(first && WORKOUTS[first] ? first : Object.keys(WORKOUTS)[0])
-  const [ex, setEx] = useState<WEx[]>(() => WORKOUTS[name].map(n => mkEx(s, n)))
+  const [suggestion] = useState(() => suggestedBodySession(s, nowInfo().today))
+  const [bodySelected, setBodySelected] = useState(Boolean(suggestion))
+  const [name, setName] = useState(suggestion?.name ?? (first && WORKOUTS[first] ? first : Object.keys(WORKOUTS)[0]))
+  const [ex, setEx] = useState<WEx[]>(() => suggestion?.exercises ?? WORKOUTS[name].map(n => mkEx(s, n)))
   const [adding, setAdding] = useState(false)
-  const pickTemplate = (n: string) => { setName(n); setEx(WORKOUTS[n].map(x => mkEx(s, x))) }
-  const start = () => { actions.setRun({ id: uid(), name, day: nowInfo().today, startedAt: Date.now(), ex, cur: 0 }); close() }
+  const pickTemplate = (n: string) => { setBodySelected(false); setName(n); setEx(WORKOUTS[n].map(x => mkEx(s, x))) }
+  const pickSuggestion = () => {
+    if (!suggestion) return
+    setBodySelected(true)
+    setName(suggestion.name)
+    setEx(suggestion.exercises)
+  }
+  const start = () => {
+    if (s.run) return
+    if (bodySelected && suggestion) {
+      if (!actions.startBodySession(suggestion.index, name, ex)) return
+    } else {
+      actions.setRun({ id: uid(), name, day: nowInfo().today, startedAt: Date.now(), ex, cur: 0 })
+    }
+    close()
+  }
   if (adding) return <Library title="Add exercise" onPick={n => { setEx(e => [...e, mkEx(s, n)]); setAdding(false) }} onBack={() => setAdding(false)} />
   return (
     <>
       <div className="lab">Start workout</div>
-      <div className="chips">{Object.keys(WORKOUTS).map(n => <button key={n} className={n === name ? 'on' : ''} onClick={() => pickTemplate(n)}>{n}</button>)}</div>
+      <div className="chips">{suggestion && <button className={bodySelected ? 'on' : ''} aria-pressed={bodySelected} aria-label={`Suggested workout: ${suggestion.name}`} onClick={pickSuggestion}>{suggestion.name}</button>}{Object.keys(WORKOUTS).map(n => <button key={n} className={!bodySelected && n === name ? 'on' : ''} aria-pressed={!bodySelected && n === name} onClick={() => pickTemplate(n)}>{n}</button>)}</div>
       <h2 className="cond">{name}</h2>
       <div className="exlist">
         {ex.map((x, i) => { const e = EXR(x.name); return (
@@ -43,7 +60,7 @@ export function Preview({ close, first }: { close: () => void; first?: string })
         ) })}
       </div>
       <button className="pill ghost" onClick={() => setAdding(true)}>+ Add exercise</button>
-      <button className="pill big" disabled={!ex.length} onClick={start}>Start</button>
+      <button className="pill big" disabled={!ex.length || Boolean(s.run)} onClick={start}>Start</button>
     </>
   )
 }
