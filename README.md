@@ -7,4 +7,4 @@ Mind / Body / Soul habit app. Installable home-screen web app (PWA).
 - Pushes to `main` deploy automatically (GitHub Pages).
 - After a release, bump `VERSION` in `sw.js` so installed copies update.
 
-Status: this is the clickable prototype (v114) packaged as an installable app. It still runs on sample data and does not save anything yet.
+Status: this is the clickable prototype (artifact version 1795590440-e09a, includes the weight plan) packaged as an installable app. It still runs on sample data and does not save anything yet.
