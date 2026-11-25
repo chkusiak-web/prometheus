@@ -268,7 +268,7 @@ h1,h2{margin:0}
 .quad b{font-size:22px;font-stretch:62%;font-weight:800;text-transform:uppercase}
 .quad span{font-size:12px;opacity:.85}
 .words{display:flex;flex-wrap:wrap;gap:6px}
-.words button{padding:8px 12px;border-radius:999px;background:var(--bone);box-shadow:inset 3px 0 0 var(--c);font-weight:600;font-size:14px}
+.words button{padding:8px 12px;border-radius:999px;background:var(--c);color:var(--word-ink);font-weight:600;font-size:14px}
 .slider{display:flex;flex-direction:column;gap:6px}
 
 /* Food search */
@@ -356,8 +356,8 @@ button.htile:active{transform:scale(.98)}
 .bstat .lab{color:var(--ink)}.bstat .n{font-size:28px;color:var(--ink);line-height:1.1}
 .bstat .d{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;padding:0 4px}
 .figwrap{position:relative;display:flex;justify-content:center;flex:1;min-height:300px}
-.figs{display:block;height:100%;max-height:430px;width:auto;max-width:100%}
-.figs [data-m]{cursor:pointer;transition:fill .25s}
+.figs{display:block;width:min(100%,203px);height:auto;aspect-ratio:495 / 1050;flex:none;align-self:center}
+.figs [data-m]{cursor:pointer;stroke:#8f897f;stroke-width:1;vector-effect:non-scaling-stroke;transition:fill .25s}
 .figs .fb{fill:#B3A99D}
 .figseg{position:absolute;left:0;top:4px;display:flex;background:var(--stone);border-radius:999px;padding:2px}
 .figseg button{padding:3px 0;width:40px;text-align:center;font-size:10px;font-weight:700;position:relative;z-index:1;color:var(--muted);transition:color .28s}

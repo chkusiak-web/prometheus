@@ -56,10 +56,10 @@ export default function Body() {
 
       <div className="figwrap">
         <style>{css}</style>
-        <svg className="figs" viewBox={back ? '653 5 495 1050' : '160 5 495 1050'} role="group" aria-label="Muscle map. Tap a muscle."
+        <svg className="figs" width={495} height={1050} viewBox={back ? '653 5 495 1050' : '160 5 495 1050'} role="group" aria-label="Muscle map. Tap a muscle."
           onClick={e => { const m = (e.target as Element).closest('[data-m]')?.getAttribute('data-m'); if (m) setMuscle(m) }}
           dangerouslySetInnerHTML={{ __html: FIG_SVG }} />
-        <div className={'figseg' + (back ? ' bk' : '')} role="group" aria-label="Side"><i className="fsth" /><button className={back ? '' : 'on'} onClick={() => setBack(false)}>Front</button><button className={back ? 'on' : ''} onClick={() => setBack(true)}>Back</button></div>
+        <div className={'figseg' + (back ? ' bk' : '')} role="group" aria-label="Side"><i className="fsth" /><button className={back ? '' : 'on'} aria-pressed={!back} onClick={() => setBack(false)}>Front</button><button className={back ? 'on' : ''} aria-pressed={back} onClick={() => setBack(true)}>Back</button></div>
       </div>
       <div className="mlegend"><span><i style={{ background: 'var(--ember)' }} />Today's plan</span><span><i style={{ background: '#A8201A' }} />Sore</span><span><i style={{ background: '#E6E0D8', boxShadow: 'inset 0 0 0 1.5px #B3A99D' }} />Ready</span></div>
       <button className="pill big" onClick={() => setSheet('log')}>+ Log</button>

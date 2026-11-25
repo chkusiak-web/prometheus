@@ -159,7 +159,7 @@ function CheckIn({ today, start, add, close }: { today: string; start: string | 
           <>
             <div className="row between"><div className="lab">{c.n}</div><button className="link" onClick={() => setCorner(null)}>Back</button></div>
             <h2 className="cond">Pick a word</h2>
-            <div className="words">{c.words.map(w => <button key={w} onClick={() => setWord(w)} style={{ ['--c' as string]: c.color }}>{w}</button>)}</div>
+            <div className="words">{c.words.map(w => <button key={w} onClick={() => setWord(w)} style={{ ['--c' as string]: c.color, ['--word-ink' as string]: c.n === 'Spent' ? '#fff' : 'var(--ink)' }}>{w}</button>)}</div>
           </>
         ) : (
           <>
