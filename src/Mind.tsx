@@ -21,67 +21,74 @@ export default function Mind() {
   const s = useStore(x => x)
   const done = weekDone(s, today)
   const [area, setArea] = useState<string | null>(null)
-  const [checking, setChecking] = useState(false)
+  const [checking, setChecking] = useState<string | boolean>(false)
   const add = (a: string, text: string, len: number) => actions.addBlock(today, { name: text, pillar: 'mind', area: a, start: nextSlot(getDay(s, today).blocks, mins), len })
   return (
     <main className="screen mind">
       <h1 className="cond pageh">Mind</h1>
       <Wheel done={done} onTap={setArea} />
-      <div className="legend">{CATS.map(c => <span key={c.n}><i style={{ background: c.color }} />{c.n}</span>)}</div>
-      <EmotionRing s={s} today={today} onCheck={() => setChecking(true)} />
+      <EmotionRing s={s} onCheck={c => setChecking(c || true)} />
       {area && <TaskSheet area={area} done={done[area] || 0} today={today} add={(t, l) => add(area, t, l)} close={() => setArea(null)} />}
-      {checking && <CheckIn today={today} add={add} close={() => setChecking(false)} />}
+      {checking && <CheckIn today={today} start={typeof checking === 'string' ? checking : null} add={add} close={() => setChecking(false)} />}
     </main>
   )
 }
 
+/** The prototype's wheel: 12 wedges of 30°, rounded by a 6px round-join stroke; fill radius grows with the square root of progress. */
 function Wheel({ done, onTap }: { done: Record<string, number>; onTap: (a: string) => void }) {
-  const R0 = 46, R1 = 150, n = AREAS.length, gap = 0.035
-  const arc = (r: number, a: number) => [r * Math.cos(a), r * Math.sin(a)]
+  const R = 136, R0 = 30, RAD = 6, GAP = 1.6, deg = Math.PI / 180
+  const P = (r: number, a: number) => `${(r * Math.cos(a)).toFixed(2)},${(r * Math.sin(a)).toFixed(2)}`
   const wedge = (i: number, r1: number) => {
-    const a0 = (i / n) * 2 * Math.PI - Math.PI / 2 + gap, a1 = ((i + 1) / n) * 2 * Math.PI - Math.PI / 2 - gap
-    const [x0, y0] = arc(R0, a0), [x1, y1] = arc(r1, a0), [x2, y2] = arc(r1, a1), [x3, y3] = arc(R0, a1)
-    return `M${x0},${y0}L${x1},${y1}A${r1},${r1} 0 0 1 ${x2},${y2}L${x3},${y3}A${R0},${R0} 0 0 0 ${x0},${y0}Z`
+    const a0 = (i * 30 - 90) * deg, a1 = ((i + 1) * 30 - 90) * deg, ri = R0 + RAD, ro = r1 - RAD
+    if (ro <= ri + 1) return null
+    const ii = (RAD + GAP) / ri, io = (RAD + GAP) / ro
+    return `M${P(ri, a0 + ii)}L${P(ro, a0 + io)}A${ro} ${ro} 0 0 1 ${P(ro, a1 - io)}L${P(ri, a1 - ii)}Z`
   }
   return (
-    <svg className="wheel" viewBox="-160 -160 320 320" role="group" aria-label="Mind areas this week">
+    <svg className="wheel" viewBox="-146 -146 292 292" role="group" aria-label="Mind wheel of 12 activities. Tap a segment for its tasks.">
       {AREAS.map((a, i) => {
-        const f = Math.min(1, (done[a.n] || 0) / a.goal), mid = ((i + 0.5) / n) * 2 * Math.PI - Math.PI / 2, [lx, ly] = arc(100, mid)
+        const pct = Math.min(1, (done[a.n] || 0) / a.goal), rf = R0 + RAD * 2 + (R - R0 - RAD * 2) * Math.sqrt(pct)
+        const bg = `color-mix(in srgb, ${a.color} 20%, #ECE8E1)`, fg = pct > 0 ? wedge(i, rf) : null
         return (
           <g key={a.n} role="button" tabIndex={0} aria-label={`${a.n}: ${done[a.n] || 0} of ${a.goal} this week`} className="wedge" onClick={() => onTap(a.n)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onTap(a.n) } }}>
-            <path d={wedge(i, R1)} fill={a.color} opacity={0.16} />
-            {f > 0 && <path d={wedge(i, R0 + (R1 - R0) * f)} fill={a.color} />}
-            <text x={lx} y={ly} textAnchor="middle" dominantBaseline="middle" className={f > 0.55 ? 'on' : ''}>{a.n}</text>
+            <title>{a.n}</title>
+            <path d={wedge(i, R)!} style={{ fill: bg, stroke: bg }} strokeWidth={2 * RAD} strokeLinejoin="round" />
+            {fg && <path d={fg} fill={a.color} stroke={a.color} strokeWidth={2 * RAD} strokeLinejoin="round" />}
           </g>
         )
       })}
-      <text x={0} y={-4} textAnchor="middle" className="wc">{Object.values(done).reduce((a, b) => a + b, 0)}</text>
-      <text x={0} y={14} textAnchor="middle" className="wl">this week</text>
     </svg>
   )
 }
 
-/** Quadrant layout: x = unpleasant → pleasant, y = high → low energy. */
-const QPOS: Record<string, [number, number]> = { Wired: [-1, -1], Bright: [1, -1], Spent: [-1, 1], Easy: [1, 1] }
-const pt = (c: { corner: string; stress: number; drive: number }) => { const [x, y] = QPOS[c.corner] || [0, 0]; const k = 0.35 + (Math.max(c.stress, c.drive) - 1) / 4 * 0.55; return [x * k, y * k] }
+/** Corner positions (x, y) on the ring: Wired, Bright, Spent, Easy. */
+const EWP: Record<string, [number, number]> = { Wired: [-1, -1], Bright: [1, -1], Spent: [-1, 1], Easy: [1, 1] }
+const EWS: [number, number[]][] = [[0, [255, 138, 14]], [45, [255, 176, 0]], [90, [141, 187, 46]], [135, [19, 160, 111]], [225, [47, 91, 234]], [315, [255, 74, 28]], [360, [255, 138, 14]]]
+const EWB = [217, 212, 204]
+const mix = (a: number[], b: number[], t: number) => a.map((v, i) => Math.round(v + (b[i] - v) * t))
+function ringAt(d: number) { for (let i = 0; i < EWS.length - 1; i++) { const [a, ca] = EWS[i], [b, cb] = EWS[i + 1]; if (d >= a && d <= b) return mix(ca, cb, (d - a) / (b - a)) } return EWS[0][1] }
+/** Halo color: the ring's color at the average direction of all check-ins, faded toward stone when they balance out. */
+function haloOf(s: State) {
+  const all = s.checkins || []
+  if (!all.length) return EWB
+  let x = 0, y = 0
+  for (const c of all) { const p = EWP[c.corner]; if (p) { x += p[0]; y += -p[1] } }
+  x /= all.length; y /= all.length
+  const m = Math.min(1, Math.hypot(x, y) / Math.SQRT2)
+  let d = Math.atan2(x, y) * 180 / Math.PI; if (d < 0) d += 360
+  const nd = Math.round((d - 45) / 90) * 90 + 45; d = ((nd + (d - nd) * 0.4) + 360) % 360
+  return mix(EWB, ringAt(d), Math.min(1, m * 4))
+}
 
-function EmotionRing({ s, today, onCheck }: { s: State; today: string; onCheck: () => void }) {
-  const all = s.checkins || [], todays = all.filter(c => c.day === today)
-  const avg = all.length ? all.map(pt).reduce((a, p) => [a[0] + p[0] / all.length, a[1] + p[1] / all.length], [0, 0]) : null
-  const last = todays[todays.length - 1]
+function EmotionRing({ s, onCheck }: { s: State; onCheck: (corner?: string) => void }) {
+  const r = 67 * Math.SQRT1_2
   return (
-    <section className="emo">
-      <div className="ring">
-        {CORNERS.map(c => <span key={c.n} style={{ background: c.color, color: c.ink ? 'var(--ink)' : '#fff' }}>{c.n}</span>)}
-        {todays.map((c, i) => { const [x, y] = pt(c); return <i key={i} className="edot" style={{ left: `${50 + x * 30}%`, top: `${50 + y * 30}%` }} /> })}
-        {avg && <i className="edot avg" style={{ left: `${50 + avg[0] * 30}%`, top: `${50 + avg[1] * 30}%` }} aria-label="All-time average" />}
-      </div>
-      <div className="emo-r">
-        <div className="lab">Feelings</div>
-        <div className="small">{last ? `Last: ${last.word} · stress ${last.stress} · drive ${last.drive}` : todays.length ? '' : 'No check-in yet today'}</div>
-        <button className="pill" onClick={onCheck}>+ Check in</button>
-      </div>
-    </section>
+    <div className="ewh">
+      <div className="ewr" />
+      <button className="ewc" style={{ ['--avg' as string]: `rgb(${haloOf(s)})` }} aria-label="Check in" onClick={() => onCheck()}><b>+</b><span>Check in</span></button>
+      {CORNERS.map(c => { const [x, y] = EWP[c.n]; return <button key={c.n} className="ewn" style={{ left: `calc(50% + ${x * r}px)`, top: `${83 + y * r}px` }} aria-label={`Log ${c.n}`} onClick={() => onCheck(c.n)} /> })}
+      <span className="ewt l t">Wired</span><span className="ewt r t">Bright</span><span className="ewt l b">Spent</span><span className="ewt r b">Easy</span>
+    </div>
   )
 }
 
@@ -114,9 +121,9 @@ function TaskSheet({ area, done, today, add, close }: { area: string; done: numb
   )
 }
 
-function CheckIn({ today, add, close }: { today: string; add: (area: string, t: string, len: number) => void; close: () => void }) {
+function CheckIn({ today, start, add, close }: { today: string; start: string | null; add: (area: string, t: string, len: number) => void; close: () => void }) {
   const s = useStore(x => x)
-  const [corner, setCorner] = useState<string | null>(null)
+  const [corner, setCorner] = useState<string | null>(start)
   const [word, setWord] = useState<string | null>(null)
   const [stress, setStress] = useState(3), [drive, setDrive] = useState(3)
   const [added, setAdded] = useState<string | null>(null)
