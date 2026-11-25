@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { actions, getDay, MEALS, useStore, type FoodItem, type Meal, type Plan, type State } from './store'
-import { loadFoods, searchFoods, servG, servL, shortName, tidy, type FoodRow } from './foods'
+import { loadFoods, portionUnits, searchFoods, servG, servL, shortName, tidy, type FoodRow } from './foods'
 import { Preview } from './Workout'
 import { addDays, fromHHMM, fromKey, toHHMM } from './date'
 import { useNow } from './useNow'
@@ -203,12 +203,17 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
   useEffect(() => { loadFoods().then(() => setReady(true)).catch(() => setReady(false)) }, [])
   const results = useMemo(() => ready && q.trim() ? searchFoods(q) : [], [q, ready])
   const kn = parseInt(k, 10)
+  const query = q.trim()
+  const searchKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const key = searchKey(query)
   // Recent: the last distinct foods you logged, newest first.
   const recent = useMemo(() => {
     const seen = new Set<string>(), out: FoodItem[] = []
     for (const d of Object.keys(s.food || {}).sort().reverse()) for (const f of [...(s.food![d] || [])].reverse()) { if (!seen.has(f.name)) { seen.add(f.name); out.push(f) } if (out.length >= 8) return out }
     return out
   }, [s.food])
+
+  const matchingRecent = key ? recent.filter(item => searchKey(item.name).includes(key)) : recent
 
   if (hit) return <Portion row={hit} meal={meal} back={() => setHit(null)} add={(kcal, extra) => { actions.addFood(today, meal, shortName(hit[0]), kcal, extra); setHit(null); setQ('') }} />
 
@@ -231,14 +236,21 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
       </div>
       <input className="name" type="search" placeholder={ready ? 'Search 7,448 foods: oatmeal, eggs, banana…' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
       <div className="flist">
-        {q.trim() ? (results.length ? results.map((r, i) => (
-          <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servG(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
-        )) : <p className="small">{ready ? 'No matches. Try fewer words, or use Quick add.' : 'Loading…'}</p>) : recent.length ? (
+        {matchingRecent.length > 0 && (
           <>
-            <div className="lab">Recent · tap to add to {meal}</div>
-            {recent.map(f => <button key={f.id} className="frow" onClick={() => actions.addFood(today, meal, f.name, f.kcal, { p: f.p, c: f.c, f: f.f, grams: f.grams })}><span><b>{f.name}</b><span className="small">{f.kcal} kcal</span></span><span aria-hidden>+</span></button>)}
+            <div className="lab">Recent · tap to repeat in {meal}</div>
+            {matchingRecent.map(f => <button key={f.id} className="frow" onClick={() => actions.addFood(today, meal, f.name, f.kcal, { p: f.p, c: f.c, f: f.f, grams: f.grams })}><span><b>{f.name}</b><span className="small">{f.kcal} kcal{f.grams != null ? ` · ${f.grams} g` : ''}</span></span><span aria-hidden>+</span></button>)}
           </>
-        ) : null}
+        )}
+        {query && results.length > 0 && (
+          <>
+            {matchingRecent.length > 0 && <div className="lab">Food catalog</div>}
+            {results.map((r, i) => (
+              <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servG(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
+            ))}
+          </>
+        )}
+        {query && !results.length && !matchingRecent.length && <p className="small">{ready ? 'No matches. Try fewer words, or use Quick add.' : 'Loading…'}</p>}
       </div>
       {quick ? (
         <form className="addfood" onSubmit={e => { e.preventDefault(); if (kn > 0) { actions.addFood(today, meal, name.trim() || meal, kn); setName(''); setK(''); setQuick(false) } }}>
@@ -248,14 +260,24 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
           </div>
           <button className="pill big" disabled={!(kn > 0)}>Add</button>
         </form>
-      ) : <button className="link" onClick={() => setQuick(true)}>Quick add calories</button>}
+      ) : <button className="link" onClick={() => { setName(query.slice(0, 60)); setQuick(true) }}>Quick add calories</button>}
     </>
   )
 }
 
 function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () => void; add: (kcal: number, extra: { p: number; c: number; f: number; grams: number }) => void }) {
-  const [q, setQ] = useState(1)
-  const g = servG(row) * q, at = (x: number) => Math.round(x * g / 100)
+  const units = portionUnits(row)
+  const [unit, setUnit] = useState(0)
+  const [quantity, setQuantity] = useState('1')
+  const q = Number(quantity)
+  const grams = q * units[unit].grams
+  const valid = Number.isFinite(grams) && grams > 0 && grams <= 100_000
+  const at = (nutrient: number) => Math.round(nutrient * (valid ? grams : 0) / 100)
+
+  function changeUnit(next: number) {
+    if (valid) setQuantity((grams / units[next].grams).toFixed(6).replace(/\.?0+$/, ''))
+    setUnit(next)
+  }
   return (
     <>
       <div className="row between"><div className="lab">{meal}</div><button className="link" onClick={back}>Back</button></div>
@@ -265,9 +287,26 @@ function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () 
         <div><div className="n">{at(row[2])}g</div><div className="lab">Protein</div></div>
         <div><div className="n">{at(row[3])}g</div><div className="lab">Carbs</div></div>
       </div>
-      <div className="stepper"><span>{q} × {servL(row)} <span className="small">({Math.round(g)} g)</span></span>
-        <span className="st-c"><button type="button" aria-label="Less" onClick={() => setQ(Math.max(0.5, q - 0.5))}>−</button><button type="button" aria-label="More" onClick={() => setQ(q + 0.5)}>+</button></span></div>
-      <button className="pill big" onClick={() => add(at(row[1]), { p: at(row[2]), c: at(row[3]), f: at(row[4]), grams: Math.round(g) })}>Add {at(row[1])} kcal</button>
+      <form onSubmit={event => {
+        event.preventDefault()
+        if (valid) add(at(row[1]), { p: at(row[2]), c: at(row[3]), f: at(row[4]), grams: Math.round(grams * 100) / 100 })
+      }}>
+        <div className="portion-fields">
+          <label className="field"><span className="lab">Quantity</span>
+            <input inputMode="decimal" value={quantity} onChange={event => {
+              const value = event.target.value.replace(',', '.')
+              if (/^\d*\.?\d*$/.test(value)) setQuantity(value)
+            }} />
+          </label>
+          <label className="field"><span className="lab">Unit</span>
+            <select value={unit} onChange={event => changeUnit(Number(event.target.value))}>
+              {units.map((measure, index) => <option key={measure.label} value={index}>{measure.label}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="small">1 serving = {servL(row)}{row[6] > 0 ? ` · ${row[6]} g` : ''}</p>
+        <button className="pill big" type="submit" disabled={!valid}>{valid ? `Add ${at(row[1])} kcal` : 'Add food'}</button>
+      </form>
     </>
   )
 }

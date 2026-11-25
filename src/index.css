@@ -399,3 +399,6 @@ button.htile:active{transform:scale(.98)}
 .app[data-keyboard-open] .food-sheet{height:100%}
 .app[data-keyboard-open] .exercise-swap{padding-block:12px}
 .app[data-keyboard-open] :is(.body-scrim,.exercise-swap) .exlist.scroll{max-height:none;overflow:visible}
+
+.portion-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);gap:10px}
+.portion-fields input,.portion-fields select{width:100%;min-width:0;font-size:16px}
