@@ -19,10 +19,11 @@ Mind / Body / Soul habit app. Installable home-screen web app (PWA), React + Vit
 - Weight plan: chart (weigh-ins, 7-day average, dashed plan), pace tier (On pace / Close / Behind vs last week, 0.25 lb grace), projected date, this week's behaviors, rewards (small = weigh-in + food 6 of 7 days and workouts at the weekly requirement; big = on pace), daily food target (maintenance − pace × 500, floor 1,800). Edit plan: goal, pace, workouts/week, reward names, Do it now list.
 - Workouts: pick one of 9 workouts, remove or add exercises (110-exercise library, word search with db/bb/ohp aliases). Runner: weight and reps steppers that carry to the next set, 60 s rest (+30 s, skip), add a set, swap (keeps done sets with the old exercise), finish or discard. In-progress workout survives closing the app. Next time: double progression (top of range on every set -> +5 lb and back to the bottom; else +1 rep). Saving adds a done Body block to today.
 - Water: 8 glasses; 8 of 8 counts as the Body check. Sleep: bed, wake and quality for last night.
+- Soul tab: quest card (today's Soul items, Quest i of N, Done/Undo; or a suggested quest from your weakest trait), sky of 12 traits that brightens with the last 7 days, trait sheet (96 quests rotated longest-not-done first, add your own), trace today's Soul triangle (shared with Close the day).
 - Do it now: a day counts as logged with a weigh-in and calories. After the 4 AM rollover, a missed log shows a random task from your list on Today, with Done and Swap.
 
 ## Not yet
-Mind, Soul and Hero tabs, food search, muscle map, This Week, spoils and forfeits, calendar, Health, notifications, Supabase sync.
+Mind and Hero tabs, food search, muscle map, This Week, spoils and forfeits, calendar, Health, notifications, Supabase sync.
 
 ## Dev
 ```
