@@ -1,6 +1,6 @@
 import { LIB, WORKOUTS } from './exercises'
 import { addDays, weekOf } from './date'
-import { kcalTarget, planOf, type State } from './store'
+import { hasCompletedSets, kcalTarget, planOf, type State } from './store'
 
 export const avg = (a: number[]) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : NaN
 
@@ -25,8 +25,8 @@ export function bodyStats(s: State, today: string) {
   const wk = weekOf(today).filter(k => k <= today)
   const weighIns = wk.filter(k => s.weights?.[k] != null).length
   const foodDays = wk.filter(k => kcal(k) > 0).length
-  // Until the workout runner exists, a workout = a day with a checked-off Body block.
-  const workouts = wk.filter(k => (s.days[k]?.blocks || []).some(b => b.done && b.pillar === 'body')).length
+  const liftDays = new Set((s.workouts || []).filter(hasCompletedSets).map(workout => workout.day))
+  const workouts = wk.filter(day => liftDays.has(day)).length
   const small = weighIns >= 6 && foodDays >= 6 && workouts >= plan.workouts
   const big = tier === 'ok'
   return { plan, cur, now7, prev7, drop, tier, toGo, eta, kcal, target: kcalTarget(plan), weighIns, foodDays, workouts, small, big }
