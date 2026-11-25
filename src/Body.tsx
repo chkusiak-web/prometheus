@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from 'react'
 import { actions, getDay, MEALS, useStore, type FoodItem, type Meal, type Plan, type State } from './store'
-import { loadFoods, searchFoods, servG, servL, shortName, tidy, type FoodRow } from './foods'
+import { loadFoods, portionUnits, searchFoods, servG, servL, shortName, tidy, type FoodRow } from './foods'
 import { Preview } from './Workout'
 import { addDays, fromHHMM, fromKey, toHHMM } from './date'
 import { useNow } from './useNow'
@@ -254,8 +254,18 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
 }
 
 function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () => void; add: (kcal: number, extra: { p: number; c: number; f: number; grams: number }) => void }) {
-  const [q, setQ] = useState(1)
-  const g = servG(row) * q, at = (x: number) => Math.round(x * g / 100)
+  const units = portionUnits(row)
+  const [unit, setUnit] = useState(0)
+  const [quantity, setQuantity] = useState('1')
+  const q = Number(quantity)
+  const grams = q * units[unit].grams
+  const valid = Number.isFinite(grams) && grams > 0 && grams <= 100_000
+  const at = (nutrient: number) => Math.round(nutrient * (valid ? grams : 0) / 100)
+
+  function changeUnit(next: number) {
+    if (valid) setQuantity((grams / units[next].grams).toFixed(6).replace(/\.?0+$/, ''))
+    setUnit(next)
+  }
   return (
     <>
       <div className="row between"><div className="lab">{meal}</div><button className="link" onClick={back}>Back</button></div>
@@ -265,9 +275,26 @@ function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () 
         <div><div className="n">{at(row[2])}g</div><div className="lab">Protein</div></div>
         <div><div className="n">{at(row[3])}g</div><div className="lab">Carbs</div></div>
       </div>
-      <div className="stepper"><span>{q} × {servL(row)} <span className="small">({Math.round(g)} g)</span></span>
-        <span className="st-c"><button type="button" aria-label="Less" onClick={() => setQ(Math.max(0.5, q - 0.5))}>−</button><button type="button" aria-label="More" onClick={() => setQ(q + 0.5)}>+</button></span></div>
-      <button className="pill big" onClick={() => add(at(row[1]), { p: at(row[2]), c: at(row[3]), f: at(row[4]), grams: Math.round(g) })}>Add {at(row[1])} kcal</button>
+      <form onSubmit={event => {
+        event.preventDefault()
+        if (valid) add(at(row[1]), { p: at(row[2]), c: at(row[3]), f: at(row[4]), grams: Math.round(grams * 100) / 100 })
+      }}>
+        <div className="portion-fields">
+          <label className="field"><span className="lab">Quantity</span>
+            <input inputMode="decimal" value={quantity} onChange={event => {
+              const value = event.target.value.replace(',', '.')
+              if (/^\d*\.?\d*$/.test(value)) setQuantity(value)
+            }} />
+          </label>
+          <label className="field"><span className="lab">Unit</span>
+            <select value={unit} onChange={event => changeUnit(Number(event.target.value))}>
+              {units.map((measure, index) => <option key={measure.label} value={index}>{measure.label}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="small">1 serving = {servL(row)}{row[6] > 0 ? ` · ${row[6]} g` : ''}</p>
+        <button className="pill big" type="submit" disabled={!valid}>{valid ? `Add ${at(row[1])} kcal` : 'Add food'}</button>
+      </form>
     </>
   )
 }
