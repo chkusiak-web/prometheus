@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { nowInfo } from './date'
+import { addDays, nowInfo } from './date'
 
 export type Pillar = 'mind' | 'body' | 'soul' | 'todo'
 export const PILLARS: { id: Pillar; name: string; color: string }[] = [
@@ -14,8 +14,8 @@ export interface Block { id: string; name: string; pillar: Pillar; start: number
 export interface Sleep { bed: number; wake: number; quality: number } // minutes since midnight
 export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; closedAt?: number; water?: number; sleep?: Sleep }
 export interface WSet { w: number; r: number; done: boolean }
-export interface WEx { name: string; sets: WSet[] }
-export interface Workout { id: string; name: string; day: string; startedAt: number; endedAt?: number; ex: WEx[]; cur: number }
+export interface WEx { name: string; sets: WSet[]; restSeconds?: number; perSide?: boolean }
+export interface Workout { id: string; name: string; day: string; startedAt: number; endedAt?: number; ex: WEx[]; cur: number; bodySession?: number }
 export interface FoodItem { id: string; meal: Meal; name: string; kcal: number; p?: number; c?: number; f?: number; grams?: number }
 export type Meal = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
 export const MEALS: Meal[] = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
@@ -31,6 +31,8 @@ export interface State {
   plan?: Plan
   withholds?: Record<string, Withhold>
   workouts?: Workout[]
+  /** One date per starter session, in template order. */
+  bodyWeek?: string[]
   /** The workout in progress, kept so leaving the app doesn't lose it. */
   run?: Workout | null
   /** Your own Soul quests, by trait. */
@@ -55,6 +57,12 @@ export const DEFAULT_PLAN: Plan = {
 export const planOf = (s: State) => s.plan || DEFAULT_PLAN
 /** Daily food target = maintenance minus pace x 500, never under the floor. */
 export const kcalTarget = (p: Plan) => Math.max(p.floor, Math.round(p.maint - p.pace * 500))
+
+export const hasCompletedSets = (workout: Workout) =>
+  workout.endedAt != null && workout.ex.some(exercise => exercise.sets.some(set => set.done && set.r > 0))
+
+export const bodySessionDone = (s: State, index: number) =>
+  (s.workouts || []).some(workout => workout.bodySession === index && hasCompletedSets(workout))
 
 const KEY = 'prometheus:v1'
 const EMPTY_DAY: Day = { blocks: [] }
@@ -145,12 +153,36 @@ export const actions = {
   setTriangle(k: string, t: string[]) { patchDay(k, d => ({ ...d, triangle: t })) },
   setWater(k: string, n: number) { patchDay(k, d => ({ ...d, water: Math.max(0, Math.min(12, n)) })) },
   setSleep(k: string, sl: Sleep | undefined) { patchDay(k, d => ({ ...d, sleep: sl })) },
+  startBodyWeek(today: string) {
+    if (state.bodyWeek) return
+    set({ ...state, plan: { ...planOf(state), workouts: 5 }, bodyWeek: Array.from({ length: 7 }, (_, index) => addDays(today, index)) })
+  },
+  moveBodySession(index: number, destination: string, today: string) {
+    const dates = state.bodyWeek
+    if (!dates || !dates[index] || destination < today) return
+    const other = dates.indexOf(destination)
+    if (other < 0 || index === other || [index, other].some(i =>
+      state.run?.bodySession === i || bodySessionDone(state, i))) return
+    const next = [...dates]
+    next[other] = dates[index]
+    next[index] = destination
+    set({ ...state, bodyWeek: next })
+  },
+  startBodySession(index: number, name: string, ex: WEx[]) {
+    const { today } = nowInfo()
+    if (state.run || state.bodyWeek?.[index] !== today || bodySessionDone(state, index)) return
+    set({ ...state, run: { id: uid(), bodySession: index, day: today, startedAt: Date.now(), name, ex, cur: 0 } })
+  },
   setRun(r: Workout | null) { set({ ...state, run: r }) },
   /** Saves the workout and adds a done Body block for it, so it counts toward the day. */
   finishRun() {
     const r = state.run; if (!r) return
     const w: Workout = { ...r, endedAt: Date.now() }
-    const d = new Date(r.startedAt), start = d.getHours() * 60 + d.getMinutes()
+    if (r.bodySession != null && !hasCompletedSets(w)) {
+      set({ ...state, run: null })
+      return
+    }
+    const { mins: start } = nowInfo(new Date(r.startedAt))
     const len = Math.max(15, Math.round((w.endedAt! - r.startedAt) / 60000 / 15) * 15)
     const day = getDay(state, r.day)
     set({ ...state, run: null, workouts: [...(state.workouts || []), w],
