@@ -42,3 +42,19 @@ const GENERIC = new Set(['Beverages', 'Cereals', 'Fish', 'Snacks', 'Candies', 'S
 export const shortName = (n: string) => { const p = tidy(n).split(',').map(x => x.trim()); const q = GENERIC.has(p[0]) && p[1] ? p.slice(1) : p; return [q[0][0].toUpperCase() + q[0].slice(1), ...q.slice(1, 2)].join(', ') }
 export const servG = (r: FoodRow) => r[6] || 100
 export const servL = (r: FoodRow) => r[5] || '100 g'
+
+export function portionUnits(row: FoodRow) {
+  const servingGrams = servG(row)
+  const units = [{ label: 'Servings', grams: servingGrams }, { label: 'Grams (g)', grams: 1 }]
+  if (!Number.isFinite(row[6]) || row[6] <= 0) return units
+
+  const serving = servL(row)
+  const cup = serving.match(/^(\d+(?:\.\d+)?) cups?\b/i)
+  if (cup && Number(cup[1]) > 0) units.push({ label: 'Cups', grams: servingGrams / Number(cup[1]) })
+
+  const ml = serving.match(/^(\d+(?:\.\d+)?)\s*m[lL]\b/i)
+  const fluidOunces = serving.match(/(?:^|\()(\d+(?:\.\d+)?)\s*fl\s*oz\b/i)
+  const volumeMl = ml ? Number(ml[1]) : fluidOunces ? Number(fluidOunces[1]) * 29.5735295625 : 0
+  if (volumeMl > 0) units.push({ label: 'Milliliters (mL)', grams: servingGrams / volumeMl })
+  return units
+}
