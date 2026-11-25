@@ -4,79 +4,104 @@ import { loadFoods, searchFoods, servG, servL, shortName, tidy, type FoodRow } f
 import { Preview } from './Workout'
 import { addDays, fromHHMM, fromKey, toHHMM } from './date'
 import { useNow } from './useNow'
-import { bodyStats, TIER } from './body'
+import { avg, bodyStats, muscleMap, TIER, type MStat } from './body'
+import { FIG_SVG } from './muscles'
+import { LIB } from './exercises'
 
-type Sheet = 'weigh' | 'food' | 'plan' | 'edit' | 'workout' | 'sleep' | null
+type Sheet = 'log' | 'weigh' | 'food' | 'plan' | 'edit' | 'workout' | 'sleep' | null
 const f1 = (n: number) => Number.isNaN(n) ? '–' : n.toFixed(1)
 const monthYear = (k: string) => fromKey(k).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+
+const ST: Record<MStat, [string, string]> = { p: ["Today's plan", 'var(--ember)'], s: ['Sore', '#A8201A'], n: ['Ready', '#8f897f'] }
+const FILL: Record<MStat, string> = { p: 'var(--ember)', s: '#A8201A', n: '#E6E0D8' }
+const agoL = (d?: number) => d == null ? 'Not trained yet' : d === 0 ? 'Last trained today' : d === 1 ? 'Last trained yesterday' : `Last trained ${d} days ago`
+const sleepH = (sl?: { bed: number; wake: number }) => sl ? ((sl.wake - sl.bed + 1440) % 1440) / 60 : NaN
+const hm = (h: number) => Number.isNaN(h) ? '–' : `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`
 
 export default function Body() {
   const { today } = useNow()
   const s = useStore(x => x)
   const st = bodyStats(s, today)
+  const mm = muscleMap(s, today)
   const [sheet, setSheet] = useState<Sheet>(null)
+  const [muscle, setMuscle] = useState<string | null>(null)
+  const [back, setBack] = useState(false)
   const eaten = st.kcal(today)
   const w = s.weights?.[today]
   const d = getDay(s, today), water = d.water ?? 0, sl = d.sleep
+  const slAvg = avg(Array.from({ length: 7 }, (_, i) => sleepH(getDay(s, addDays(today, -i)).sleep)).filter(x => !Number.isNaN(x)))
+  const delta = st.drop
+  const close = () => setSheet(null)
+  // Muscle colors as one stylesheet keyed by data-m, so the SVG stays static.
+  const css = useMemo(() => Array.from(new Set(Array.from(FIG_SVG.matchAll(/data-m="([^"]+)"/g), m => m[1])))
+    .map(m => `.figs [data-m="${m}"]{fill:${muscle === m ? 'var(--ink)' : FILL[mm.stat(m)]}}`).join(''), [mm, muscle])
 
   return (
     <main className="screen body">
       <h1 className="cond pageh">Body</h1>
-      <section className="strip">
-        <div><div className="n">{f1(st.cur)}</div><div className="lab">7-day avg</div></div>
-        <div><div className="n">{Number.isNaN(st.toGo) ? '–' : Math.max(0, st.toGo).toFixed(1)}</div><div className="lab">lb to go</div></div>
-        <div><div className="n">{st.workouts}/{st.plan.workouts}</div><div className="lab">Workouts</div></div>
+      <section className="bcard">
+        <button className="bstat" onClick={() => setSheet('plan')} aria-label="Weight plan">
+          <span className="lab">Weight</span><span className="n">{f1(st.cur)}</span>
+          <span className="d" style={{ color: TIER[st.tier].color }}>{Number.isNaN(delta) ? TIER[st.tier].label : `${delta >= 0 ? '↓' : '↑'} ${Math.abs(delta).toFixed(1)} lb · ${TIER[st.tier].label}`}</span>
+        </button>
+        <button className="bstat" onClick={() => setSheet('sleep')} aria-label="Log sleep">
+          <span className="lab">Sleep</span><span className="n">{hm(sleepH(sl))}</span>
+          <span className="d" style={{ color: '#C98A00' }}>{Number.isNaN(slAvg) ? 'Last night' : `avg ${hm(slAvg)}`}</span>
+        </button>
+        <button className="bstat" onClick={() => setSheet('workout')} aria-label="Start workout">
+          <span className="lab">Workouts</span><span className="n">{st.workouts}/{st.plan.workouts}</span>
+          <span className="d" style={{ color: st.workouts >= st.plan.workouts ? 'var(--green)' : 'var(--muted)' }}>this week</span>
+        </button>
       </section>
 
-      <button className="plancard" onClick={() => setSheet('plan')}>
-        <span className="lab">Weight plan · {st.plan.pace} lb/week</span>
-        <span className="pc-row">
-          <span className="tierpill" style={{ background: TIER[st.tier].color }}>{TIER[st.tier].label}</span>
-          <span className="small">{st.eta ? `Goal ${st.plan.goal} lb · ${monthYear(st.eta)}` : `Goal ${st.plan.goal} lb`}</span>
-          <span aria-hidden>›</span>
-        </span>
-      </button>
-
-      <button className="pill big" onClick={() => setSheet('workout')}>Start workout</button>
-
-      <div className="tiles">
-        <button className="tile" onClick={() => setSheet('weigh')}>
-          <span className="lab">Weigh-in</span>
-          <span className="n">{w != null ? f1(w) : 'Log'}</span>
-          <span className="small">{w != null ? 'lb today' : 'Not yet today'}</span>
-        </button>
-        <button className="tile" onClick={() => setSheet('food')}>
-          <span className="lab">Food</span>
-          <span className="n">{eaten || 'Log'}</span>
-          <span className="small">{eaten ? `of ${st.target.toLocaleString()} kcal` : `Target ${st.target.toLocaleString()}`}</span>
-        </button>
-        <div className="tile">
-          <span className="lab">Water</span>
-          <span className="glass" aria-label={`${water} of 8 glasses`}>{Array.from({ length: 8 }, (_, i) => <i key={i} className={i < water ? 'f' : ''} />)}</span>
-          <span className="row between"><span className="small">{water}/8{water >= 8 ? ' · Body ✓' : ''}</span>
-            <span className="row"><button className="mini" aria-label="One less glass" onClick={() => actions.setWater(today, water - 1)}>−</button><button className="mini dark" aria-label="Add a glass" onClick={() => actions.setWater(today, water + 1)}>+</button></span></span>
-        </div>
-        <button className="tile" onClick={() => setSheet('sleep')}>
-          <span className="lab">Sleep</span>
-          <span className="n">{sl ? durL(sl.bed, sl.wake) : 'Log'}</span>
-          <span className="small">{sl ? `Quality ${sl.quality}/5` : 'Last night'}</span>
-        </button>
+      <div className="figwrap">
+        <style>{css}</style>
+        <svg className="figs" viewBox={back ? '653 5 495 1050' : '160 5 495 1050'} role="group" aria-label="Muscle map. Tap a muscle."
+          onClick={e => { const m = (e.target as Element).closest('[data-m]')?.getAttribute('data-m'); if (m) setMuscle(m) }}
+          dangerouslySetInnerHTML={{ __html: FIG_SVG }} />
+        <div className={'figseg' + (back ? ' bk' : '')} role="group" aria-label="Side"><i className="fsth" /><button className={back ? '' : 'on'} onClick={() => setBack(false)}>Front</button><button className={back ? 'on' : ''} onClick={() => setBack(true)}>Back</button></div>
       </div>
+      <div className="mlegend"><span><i style={{ background: 'var(--ember)' }} />Today's plan</span><span><i style={{ background: '#A8201A' }} />Sore</span><span><i style={{ background: '#E6E0D8', boxShadow: 'inset 0 0 0 1.5px #B3A99D' }} />Ready</span></div>
+      <button className="pill big" onClick={() => setSheet('log')}>+ Log</button>
 
-      {sheet && (
-        <div className="scrim" onClick={() => setSheet(null)}>
+      {(sheet || muscle) && (
+        <div className="scrim" onClick={() => { setSheet(null); setMuscle(null) }}>
           <div className="sheet" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
             <div className="grab" />
-            {sheet === 'weigh' && <WeighIn today={today} current={w} close={() => setSheet(null)} />}
+            {muscle && !sheet && <MuscleSheet name={muscle} stat={mm.stat(muscle)} ago={mm.ago[muscle]} />}
+            {sheet === 'log' && (
+              <>
+                <h2 className="cond">Log</h2>
+                <button className="lgo" onClick={() => setSheet('workout')}><span className="cond">Start workout</span><small>{mm.next} · up next</small></button>
+                <div className="lgrid">
+                  <button className="lgx" style={{ ['--c' as string]: 'var(--green)' }} onClick={() => setSheet('food')}><i className="fill" style={{ height: `${Math.min(100, eaten / st.target * 100)}%` }} /><span className="lab">Food</span><span className="lgn"><b className="cond">{Math.max(0, st.target - eaten).toLocaleString()}</b><small>kcal left</small></span></button>
+                  <button className="lgx" style={{ ['--c' as string]: 'var(--cobalt)' }} onClick={() => actions.setWater(today, water >= 8 ? 0 : water + 1)} aria-label={`Water ${water} of 8. Tap to add a glass.`}><i className="fill" style={{ height: `${water / 8 * 100}%` }} /><span className="lab">Water · tap +1</span><span className="lgn"><b className="cond">{water}/8</b><small>glasses</small></span></button>
+                  <button className="lgx" style={{ ['--c' as string]: 'var(--gold)' }} onClick={() => setSheet('weigh')}><i className="fill" style={{ height: w != null ? '100%' : '0' }} /><span className="lab">Weight</span><span className="lgn"><b className="cond">{w != null ? f1(w) : '–'}</b><small>{w != null ? 'lb today' : 'Not yet today'}</small></span></button>
+                  <button className="lgx" style={{ ['--c' as string]: 'var(--navy)' }} onClick={() => setSheet('sleep')}><i className="fill" style={{ height: `${Math.min(100, (sleepH(sl) || 0) / 8 * 100)}%` }} /><span className="lab">Sleep</span><span className="lgn"><b className="cond">{sl ? durL(sl.bed, sl.wake) : '–'}</b><small>{sl ? `Quality ${sl.quality}/5` : 'Last night'}</small></span></button>
+                </div>
+              </>
+            )}
+            {sheet === 'weigh' && <WeighIn today={today} current={w} close={close} />}
             {sheet === 'food' && <Food today={today} s={s} target={st.target} />}
             {sheet === 'plan' && <PlanSheet s={s} today={today} edit={() => setSheet('edit')} />}
-            {sheet === 'workout' && <Preview close={() => setSheet(null)} />}
-            {sheet === 'sleep' && <SleepSheet today={today} close={() => setSheet(null)} />}
+            {sheet === 'workout' && <Preview first={mm.next} close={close} />}
+            {sheet === 'sleep' && <SleepSheet today={today} close={close} />}
             {sheet === 'edit' && <EditPlan plan={st.plan} close={() => setSheet('plan')} />}
           </div>
         </div>
       )}
     </main>
+  )
+}
+
+function MuscleSheet({ name, stat, ago }: { name: string; stat: MStat; ago?: number }) {
+  const ex = LIB.filter(x => x[1] === name).slice(0, 4).map(x => x[0])
+  return (
+    <>
+      <div className="row"><h2 className="cond">{name}</h2><span className="mtag" style={{ background: ST[stat][1] }}>{ST[stat][0]}</span></div>
+      <p className="small">{agoL(ago)}</p>
+      <div><div className="lab" style={{ marginBottom: 4 }}>Exercises</div>{(ex.length ? ex : ['Bodyweight circuit']).map(x => <div key={x} className="exr">{x}</div>)}</div>
+    </>
   )
 }
 
