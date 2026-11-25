@@ -3,6 +3,7 @@ import { actions, dayStatus, getDay, pillarOf, useStore, type Block } from './st
 import { dayLetter, headDate, lenLab, tlab, weekOf } from './date'
 import { useNow } from './useNow'
 import BlockSheet, { type SheetMode } from './BlockSheet'
+import DoItNow from './DoItNow'
 
 const HOUR = 72 // px per hour on the agenda
 
@@ -39,6 +40,8 @@ export default function Today({ onClose }: { onClose: () => void }) {
           <span className="pcount">{st.won ? 'Day won' : `${Math.min(st.count, 3)} of 3`}</span>
         </div>
       </header>
+
+      <DoItNow today={today} />
 
       {upNext ? (
         <section className="upnext" style={{ background: pillarOf(upNext.pillar).color, color: upNext.pillar === 'soul' ? 'var(--ink)' : '#fff' }}>
