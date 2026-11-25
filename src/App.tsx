@@ -37,7 +37,7 @@ export default function App() {
   return (
     <div className="app">
       {tab === 'today' ? <Today onClose={() => setClosing(true)} /> : tab === 'body' ? <Body /> : tab === 'soul' ? <Soul /> : tab === 'mind' ? <Mind /> : <HeroTab />}
-      <nav className={'tabs' + (tab === 'soul' ? ' dark' : '')} aria-label="Tabs">
+      <nav className={'tabs' + (tab === 'soul' || tab === 'hero' ? ' dark' : '')} aria-label="Tabs">
         {TABS.map(t => (
           <button key={t.id} className={'tab' + (tab === t.id ? ' on' : '')} aria-label={t.label} aria-current={tab === t.id} onClick={() => setTab(t.id)}>{t.icon}</button>
         ))}
