@@ -10,7 +10,7 @@ export const PILLARS: { id: Pillar; name: string; color: string }[] = [
 ]
 export const pillarOf = (p: Pillar) => PILLARS.find(x => x.id === p)!
 
-export interface Block { id: string; name: string; pillar: Pillar; start: number; len: number; done: boolean; doneAt?: number; trait?: string }
+export interface Block { id: string; name: string; pillar: Pillar; start: number; len: number; done: boolean; doneAt?: number; trait?: string; area?: string }
 export interface Sleep { bed: number; wake: number; quality: number } // minutes since midnight
 export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; closedAt?: number; water?: number; sleep?: Sleep }
 export interface WSet { w: number; r: number; done: boolean }
@@ -35,7 +35,11 @@ export interface State {
   run?: Workout | null
   /** Your own Soul quests, by trait. */
   myQuests?: Record<string, string[]>
+  /** Your own Mind tasks, by area. */
+  myTasks?: Record<string, string[]>
+  checkins?: CheckIn[]
 }
+export interface CheckIn { ts: number; day: string; corner: string; word: string; stress: number; drive: number }
 
 export const DEFAULT_PLAN: Plan = {
   goal: 200, pace: 1.5, workouts: 4, maint: 3150, floor: 1800, small: 'Coffee treat', big: '$25 to the gear fund',
@@ -126,6 +130,8 @@ export const actions = {
   setPlan(p: Plan) { set({ ...state, plan: p }) },
   setWithhold(k: string, w: Withhold) { set({ ...state, withholds: { ...state.withholds, [k]: w } }) },
   addMyQuest(trait: string, q: string) { set({ ...state, myQuests: { ...state.myQuests, [trait]: [...(state.myQuests?.[trait] || []), q] } }) },
+  addMyTask(area: string, t: string) { set({ ...state, myTasks: { ...state.myTasks, [area]: [...(state.myTasks?.[area] || []), t] } }) },
+  addCheckIn(c: CheckIn) { set({ ...state, checkins: [...(state.checkins || []), c] }) },
   setTriangle(k: string, t: string[]) { patchDay(k, d => ({ ...d, triangle: t })) },
   setWater(k: string, n: number) { patchDay(k, d => ({ ...d, water: Math.max(0, Math.min(12, n)) })) },
   setSleep(k: string, sl: Sleep | undefined) { patchDay(k, d => ({ ...d, sleep: sl })) },
