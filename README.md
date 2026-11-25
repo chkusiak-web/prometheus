@@ -26,7 +26,7 @@ Mind / Body / Soul habit app. Installable home-screen web app (PWA), React + Vit
 - Do it now: a day counts as logged with a weigh-in and calories. After the 4 AM rollover, a missed log shows a random task from your list on Today, with Done and Swap.
 
 ## Not yet
-Muscle map, planner and This Week, calendar, Health, notifications, Supabase sync.
+Planner and This Week, calendar, Health, notifications, Supabase sync.
 
 ## Dev
 ```

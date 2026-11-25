@@ -1,3 +1,4 @@
+import { LIB, WORKOUTS } from './exercises'
 import { addDays, weekOf } from './date'
 import { kcalTarget, planOf, type State } from './store'
 
@@ -44,4 +45,27 @@ export function missedLogs(s: State, k: string) {
   if (s.weights?.[k] == null) m.push('weigh-in')
   if (!(s.food?.[k] || []).some(f => f.kcal > 0)) m.push('calories')
   return m
+}
+
+const ORDER = Object.keys(WORKOUTS)
+/** The workout up next: the one after your last finished workout, in template order. */
+export function nextWorkout(s: State) {
+  const last = (s.workouts || []).filter(w => w.endedAt).sort((a, b) => b.startedAt - a.startedAt)[0]
+  if (!last) return ORDER[0]
+  const i = ORDER.indexOf(last.name)
+  return i < 0 ? ORDER[0] : ORDER[(i + 1) % ORDER.length]
+}
+const MUS = Object.fromEntries(LIB.map(x => [x[0], x[1]]))
+export type MStat = 'p' | 's' | 'n'
+/** Per muscle: days since last trained (finished workouts), and plan / sore / ready. */
+export function muscleMap(s: State, today: string) {
+  const ago: Record<string, number> = {}
+  for (const w of s.workouts || []) {
+    if (!w.endedAt) continue
+    const d = Math.round((+new Date(today + 'T12:00') - +new Date(w.day + 'T12:00')) / 864e5)
+    for (const e of w.ex) { const m = MUS[e.name]; if (m && e.sets.some(x => x.done) && (ago[m] == null || d < ago[m])) ago[m] = d }
+  }
+  const plan = new Set((WORKOUTS[nextWorkout(s)] || []).map(n => MUS[n]).filter(Boolean))
+  const stat = (m: string): MStat => plan.has(m) ? 'p' : ago[m] != null && ago[m] <= 1 ? 's' : 'n'
+  return { ago, plan, stat, next: nextWorkout(s) }
 }

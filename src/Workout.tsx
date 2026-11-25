@@ -23,9 +23,9 @@ function prefill(s: State, name: string) {
 }
 const mkEx = (s: State, name: string): WEx => { const p = prefill(s, name); return { name, sets: Array.from({ length: SETS }, () => ({ ...p, done: false })) } }
 
-export function Preview({ close }: { close: () => void }) {
+export function Preview({ close, first }: { close: () => void; first?: string }) {
   const s = useStore(x => x)
-  const [name, setName] = useState(Object.keys(WORKOUTS)[0])
+  const [name, setName] = useState(first && WORKOUTS[first] ? first : Object.keys(WORKOUTS)[0])
   const [ex, setEx] = useState<WEx[]>(() => WORKOUTS[name].map(n => mkEx(s, n)))
   const [adding, setAdding] = useState(false)
   const pickTemplate = (n: string) => { setName(n); setEx(WORKOUTS[n].map(x => mkEx(s, x))) }
