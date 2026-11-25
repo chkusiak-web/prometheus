@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { fromKey } from './date'
-import { actions, bodySessionDone, hasCompletedSets, useStore, type State, type WEx } from './store'
+import { actions, bodySessionDone, hasCompletedSets, plannedLiftOn, useStore, type State, type WEx } from './store'
 
 type Prescription = [name: string, sets: number, min: number, max: number, perSide?: boolean, timed?: boolean]
 type Session = { name: string; lifts: Prescription[] } | { name: string; recovery: string }
@@ -44,27 +44,18 @@ function workingSets(state: State, [name, count, min, , perSide]: Prescription):
   }
 }
 
-function SessionAction({ state, index, session }: {
-  state: State; index: number; session: Session
-}) {
-  if ('recovery' in session) return null
-  if (bodySessionDone(state, index)) return <span className="small">Done</span>
-  return <button className="pill" disabled={Boolean(state.run)} onClick={() =>
-    actions.startBodySession(index, session.name, session.lifts.map(lift => workingSets(state, lift)))
-  }>Start lift</button>
-}
-
-export function TodayBodySession({ today }: { today: string }) {
-  const state = useStore(s => s)
-  const index = state.bodyWeek?.indexOf(today) ?? -1
-  const session = SESSIONS[index]
-  if (!session) return null
-  return (
-    <section className="body-today" aria-label="Today's Body session">
-      <div><span className="lab">Body · 60 min planned</span><strong>{session.name}</strong></div>
-      <SessionAction state={state} index={index} session={session} />
-    </section>
-  )
+export function suggestedBodySession(state: State, today: string) {
+  if (plannedLiftOn(state, today)) return undefined
+  const index = SESSIONS.map((session, index) => ({ session, index }))
+    .filter(({ session, index }) => 'lifts' in session && !bodySessionDone(state, index))
+    .sort((a, b) => {
+      const first = state.bodyWeek?.[a.index] ?? ''
+      const second = state.bodyWeek?.[b.index] ?? ''
+      return Number(second === today) - Number(first === today) || first.localeCompare(second)
+    })[0]?.index
+  const session = index == null ? undefined : SESSIONS[index]
+  if (index == null || !session || !('lifts' in session)) return undefined
+  return { index, name: session.name, lifts: session.lifts, exercises: session.lifts.map(lift => workingSets(state, lift)) }
 }
 
 export default function BodyWeek({ today }: { today: string }) {
@@ -77,10 +68,9 @@ export default function BodyWeek({ today }: { today: string }) {
     <section className="body-week" aria-label="Body starter week">
       <div className="row between">
         <h2 className="cond">Body week</h2>
-        {dates ? <button className="link" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide week' : 'Show week'}</button>
-          : <button className="pill" onClick={() => { actions.startBodyWeek(today); setOpen(true) }}>Start week</button>}
+        {dates && <button className="link" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? 'Hide week' : 'Show week'}</button>}
       </div>
-      <p className="small">{dates ? `${completed} / 5 planned lifts saved` : 'Five lifts and two recovery days. Reserve an hour each day.'}</p>
+      <p className="small">{dates ? `${completed} / 5 planned lifts saved` : 'Five lifts and two recovery days. Your first lift appears in Start workout.'}</p>
       {dates && open && dates.map((day, index) => ({ day, index })).sort((a, b) => a.day.localeCompare(b.day)).map(({ day, index }) => {
         const session = SESSIONS[index]
         const done = bodySessionDone(state, index)
@@ -93,7 +83,6 @@ export default function BodyWeek({ today }: { today: string }) {
           <div className="body-week-row" key={index}>
             <div className="row between">
               <span className="lab">{shortDate(day)}</span>
-              {day === today && !done && <SessionAction state={state} index={index} session={session} />}
               {done && <span className="small">Done</span>}
             </div>
             <details>
