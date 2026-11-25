@@ -67,7 +67,7 @@ export default function Body() {
       {sheet === 'food' && <FoodSheet today={today} s={s} target={st.target} close={close} />}
 
       {sheet !== 'food' && (sheet || muscle) && (
-        <div className="scrim" onClick={() => { setSheet(null); setMuscle(null) }}>
+        <div className="scrim body-scrim" onClick={() => { setSheet(null); setMuscle(null) }}>
           <div className="sheet" role="dialog" aria-modal="true" onClick={e => e.stopPropagation()}>
             <div className="grab" />
             {muscle && !sheet && <MuscleSheet name={muscle} stat={mm.stat(muscle)} ago={mm.ago[muscle]} />}
@@ -174,7 +174,7 @@ function FoodSheet({ today, s, target, close }: { today: string; s: State; targe
   }
 
   return (
-    <div className="scrim" onClick={dismiss}>
+    <div className="scrim body-scrim" onClick={dismiss}>
       <div ref={panel} className="sheet food-sheet" role="dialog" aria-modal="true" aria-label="Food log"
         onClick={event => event.stopPropagation()} onKeyDown={event => { if (event.key === 'Escape') dismiss() }}>
         <button className="food-sheet-handle" type="button" aria-label="Close food log"
@@ -229,7 +229,7 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
       <div className="seg" role="radiogroup" aria-label="Meal">
         {MEALS.map(m => <button type="button" key={m} role="radio" aria-checked={meal === m} className={meal === m ? 'on' : ''} onClick={() => setMeal(m)}>{m}</button>)}
       </div>
-      <input className="name" type="search" placeholder={ready ? 'Search 7,448 foods: oatmeal, eggs, banana…' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" />
+      <input className="name" type="search" placeholder={ready ? 'Search 7,448 foods: oatmeal, eggs, banana…' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
       <div className="flist">
         {q.trim() ? (results.length ? results.map((r, i) => (
           <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servG(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
@@ -244,7 +244,7 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
         <form className="addfood" onSubmit={e => { e.preventDefault(); if (kn > 0) { actions.addFood(today, meal, name.trim() || meal, kn); setName(''); setK(''); setQuick(false) } }}>
           <div className="formrow2">
             <input className="name" placeholder="What (optional)" value={name} onChange={e => setName(e.target.value)} autoComplete="off" maxLength={60} />
-            <input className="name kc" inputMode="numeric" placeholder="kcal" value={k} onChange={e => setK(e.target.value.replace(/\D/g, ''))} aria-label="Calories" autoFocus />
+            <input className="name kc" inputMode="numeric" placeholder="kcal" value={k} onChange={e => setK(e.target.value.replace(/\D/g, ''))} aria-label="Calories" />
           </div>
           <button className="pill big" disabled={!(kn > 0)}>Add</button>
         </form>
