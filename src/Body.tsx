@@ -203,12 +203,17 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
   useEffect(() => { loadFoods().then(() => setReady(true)).catch(() => setReady(false)) }, [])
   const results = useMemo(() => ready && q.trim() ? searchFoods(q) : [], [q, ready])
   const kn = parseInt(k, 10)
+  const query = q.trim()
+  const searchKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
+  const key = searchKey(query)
   // Recent: the last distinct foods you logged, newest first.
   const recent = useMemo(() => {
     const seen = new Set<string>(), out: FoodItem[] = []
     for (const d of Object.keys(s.food || {}).sort().reverse()) for (const f of [...(s.food![d] || [])].reverse()) { if (!seen.has(f.name)) { seen.add(f.name); out.push(f) } if (out.length >= 8) return out }
     return out
   }, [s.food])
+
+  const matchingRecent = key ? recent.filter(item => searchKey(item.name).includes(key)) : recent
 
   if (hit) return <Portion row={hit} meal={meal} back={() => setHit(null)} add={(kcal, extra) => { actions.addFood(today, meal, shortName(hit[0]), kcal, extra); setHit(null); setQ('') }} />
 
@@ -231,14 +236,21 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
       </div>
       <input className="name" type="search" placeholder={ready ? 'Search 7,448 foods: oatmeal, eggs, banana…' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
       <div className="flist">
-        {q.trim() ? (results.length ? results.map((r, i) => (
-          <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servG(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
-        )) : <p className="small">{ready ? 'No matches. Try fewer words, or use Quick add.' : 'Loading…'}</p>) : recent.length ? (
+        {matchingRecent.length > 0 && (
           <>
-            <div className="lab">Recent · tap to add to {meal}</div>
-            {recent.map(f => <button key={f.id} className="frow" onClick={() => actions.addFood(today, meal, f.name, f.kcal, { p: f.p, c: f.c, f: f.f, grams: f.grams })}><span><b>{f.name}</b><span className="small">{f.kcal} kcal</span></span><span aria-hidden>+</span></button>)}
+            <div className="lab">Recent · tap to repeat in {meal}</div>
+            {matchingRecent.map(f => <button key={f.id} className="frow" onClick={() => actions.addFood(today, meal, f.name, f.kcal, { p: f.p, c: f.c, f: f.f, grams: f.grams })}><span><b>{f.name}</b><span className="small">{f.kcal} kcal{f.grams != null ? ` · ${f.grams} g` : ''}</span></span><span aria-hidden>+</span></button>)}
           </>
-        ) : null}
+        )}
+        {query && results.length > 0 && (
+          <>
+            {matchingRecent.length > 0 && <div className="lab">Food catalog</div>}
+            {results.map((r, i) => (
+              <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servG(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
+            ))}
+          </>
+        )}
+        {query && !results.length && !matchingRecent.length && <p className="small">{ready ? 'No matches. Try fewer words, or use Quick add.' : 'Loading…'}</p>}
       </div>
       {quick ? (
         <form className="addfood" onSubmit={e => { e.preventDefault(); if (kn > 0) { actions.addFood(today, meal, name.trim() || meal, kn); setName(''); setK(''); setQuick(false) } }}>
@@ -248,7 +260,7 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
           </div>
           <button className="pill big" disabled={!(kn > 0)}>Add</button>
         </form>
-      ) : <button className="link" onClick={() => setQuick(true)}>Quick add calories</button>}
+      ) : <button className="link" onClick={() => { setName(query.slice(0, 60)); setQuick(true) }}>Quick add calories</button>}
     </>
   )
 }
