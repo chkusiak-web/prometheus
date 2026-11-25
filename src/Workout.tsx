@@ -60,7 +60,7 @@ function Library({ title, muscle, onPick, onBack }: { title: string; muscle?: st
   return (
     <>
       <div className="row between"><h2 className="cond">{title}</h2><button className="link" onClick={onBack}>Back</button></div>
-      <input className="name" placeholder="Search: dumbbell, chest, squat…" value={q} onChange={e => setQ(e.target.value)} autoFocus autoComplete="off" autoCorrect="off" />
+      <input className="name" placeholder="Search: dumbbell, chest, squat…" value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search exercises" enterKeyHint="search" />
       <div className="exlist scroll">
         {list.map(e => <button key={e[0]} className="exrow" onClick={() => onPick(e[0])}><span><b>{e[0]}</b><span className="small">{e[1]} · {e[3]}</span></span></button>)}
       </div>
@@ -110,7 +110,7 @@ export function Runner() {
   )
 
   if (swap) return (
-    <div className="flow runner"><div className="step top">
+    <div className="flow runner exercise-swap"><div className="step top">
       <Library title={`Swap ${x.name}`} muscle={e[1]} onBack={() => setSwap(false)} onPick={n => {
         // Sets already done stay with the old exercise; the new one takes the remaining sets.
         const done = x.sets.filter(st => st.done), fresh = mkEx(s, n)
