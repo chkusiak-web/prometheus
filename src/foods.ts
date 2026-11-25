@@ -1,13 +1,23 @@
 // USDA SR Legacy foods (7,448 rows, from the WRKT handoff), searched on the device.
-// Row: [name, kcal/100 g, protein, carbs, fat (g/100 g), serving label, serving grams]
-export type FoodRow = [string, number, number, number, number, string, number]
+// Nutrients are per 100 g for legacy foods, or per 100 mL when serving mL is present.
+export type FoodRow = [name: string, kcal: number, protein: number, carbs: number, fat: number, serving: string, grams: number, ml?: number]
+
+// Label values per cup (240 mL), converted to values per 100 mL.
+const OAT_MILKS: FoodRow[] = [
+  // https://www.oatly.com/en-us/products/chilled-oatmilk/chilled-oatmilk-64-oz
+  ['Oatly Original Oat Milk', 120 / 2.4, 3 / 2.4, 16 / 2.4, 5 / 2.4, '1 cup (240 mL)', 0, 240],
+  // https://www.oatly.com/en-us/products/chilled-oatmilk/chilled-oatmilk-unsweetened-64-oz
+  ['Oatly Unsweetened Oat Milk', 40 / 2.4, 0, 6 / 2.4, 1.5 / 2.4, '1 cup (240 mL)', 0, 240],
+  // https://silk.com/plant-based-products/oatmilk/oatmilk/
+  ['Silk Original Oat Milk', 120 / 2.4, 1 / 2.4, 18 / 2.4, 5 / 2.4, '1 cup (240 mL)', 0, 240],
+]
 
 let FOODS: FoodRow[] | null = null, WORDS: string[][] = []
 let loading: Promise<FoodRow[]> | null = null
 export function loadFoods() {
   if (FOODS) return Promise.resolve(FOODS)
   return loading ||= fetch('foods.json').then(r => r.json()).then((d: FoodRow[]) => {
-    FOODS = d; WORDS = d.map(r => r[0].replace(/\(Includes foods[^)]*\)/, '').toLowerCase().split(/[^a-z0-9%]+/).filter(Boolean)); return d
+    FOODS = [...OAT_MILKS, ...d]; WORDS = FOODS.map(r => r[0].replace(/\(Includes foods[^)]*\)/, '').toLowerCase().split(/[^a-z0-9%]+/).filter(Boolean)); return FOODS
   })
 }
 
@@ -18,7 +28,7 @@ const BRAND = /^[A-Z0-9'&.\- ]{3,},/
 /** Every word must start a word in the name. Common, whole forms rank first; brands and processed forms sink. */
 export function searchFoods(q: string): FoodRow[] {
   if (!FOODS) return []
-  q = q.toLowerCase().trim().replace(/\s+/g, ' ')
+  q = q.toLowerCase().trim().replace(/\boat[-\s]*milk\b/g, 'oat milk').replace(/\s+/g, ' ')
   q = SYN[q] || q
   const qs = q.split(/[^a-z0-9%]+/).filter(Boolean).map(w => w.length > 3 && w.endsWith('s') && !w.endsWith('ss') ? w.slice(0, -1) : w)
   if (!qs.length) return []
@@ -41,21 +51,27 @@ export const tidy = (n: string) => { let t = n.replace(/\s*\(Includes foods[^)]*
 const GENERIC = new Set(['Beverages', 'Cereals', 'Fish', 'Snacks', 'Candies', 'Spices', 'Alcoholic beverage', 'Alcoholic Beverage', 'Babyfood'])
 /** "Beverages, coffee, brewed, …" → "Coffee, brewed"; "Bananas, raw" stays. */
 export const shortName = (n: string) => { const p = tidy(n).split(',').map(x => x.trim()); const q = GENERIC.has(p[0]) && p[1] ? p.slice(1) : p; return [q[0][0].toUpperCase() + q[0].slice(1), ...q.slice(1, 2)].join(', ') }
-export const servG = (r: FoodRow) => r[6] || 100
+export const servingAmount = (r: FoodRow) => r[7] || r[6] || 100
 export const servL = (r: FoodRow) => r[5] || '100 g'
 
 export function portionUnits(row: FoodRow) {
-  const servingGrams = servG(row)
-  const units = [{ label: 'Servings', grams: servingGrams }, { label: 'Grams (g)', grams: 1 }]
+  if (row[7]) return [
+    { label: 'Servings', amount: row[7] },
+    { label: 'Cups', amount: row[7] },
+    { label: 'Milliliters (mL)', amount: 1 },
+  ]
+
+  const servingGrams = servingAmount(row)
+  const units = [{ label: 'Servings', amount: servingGrams }, { label: 'Grams (g)', amount: 1 }]
   if (!Number.isFinite(row[6]) || row[6] <= 0) return units
 
   const serving = servL(row)
   const cup = serving.match(/^(\d+(?:\.\d+)?) cups?\b/i)
-  if (cup && Number(cup[1]) > 0) units.push({ label: 'Cups', grams: servingGrams / Number(cup[1]) })
+  if (cup && Number(cup[1]) > 0) units.push({ label: 'Cups', amount: servingGrams / Number(cup[1]) })
 
   const ml = serving.match(/^(\d+(?:\.\d+)?)\s*m[lL]\b/i)
   const fluidOunces = serving.match(/(?:^|\()(\d+(?:\.\d+)?)\s*fl\s*oz\b/i)
   const volumeMl = ml ? Number(ml[1]) : fluidOunces ? Number(fluidOunces[1]) * 29.5735295625 : 0
-  if (volumeMl > 0) units.push({ label: 'Milliliters (mL)', grams: servingGrams / volumeMl })
+  if (volumeMl > 0) units.push({ label: 'Milliliters (mL)', amount: servingGrams / volumeMl })
   return units
 }
