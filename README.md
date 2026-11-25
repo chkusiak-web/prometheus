@@ -21,10 +21,11 @@ Mind / Body / Soul habit app. Installable home-screen web app (PWA), React + Vit
 - Water: 8 glasses; 8 of 8 counts as the Body check. Sleep: bed, wake and quality for last night.
 - Soul tab: quest card (today's Soul items, Quest i of N, Done/Undo; or a suggested quest from your weakest trait), sky of 12 traits that brightens with the last 7 days, trait sheet (96 quests rotated longest-not-done first, add your own), trace today's Soul triangle (shared with Close the day).
 - Mind tab: wheel of 12 areas in 4 categories that fills toward each weekly goal (done Mind tasks this week), area task sheets (first 4, add your own, rest), feelings check-in (quadrant, word, stress and drive 1–5) with an emotion ring (today's dots, all-time average). Stress 4–5, Drive 1 or Drive 5 adds a short Emotion quest to today.
+- Hero tab: Mind / Body / Soul % and Hero days/7 (completion-based; Body = 70% workouts + 30% logging), flame panel sized by Overall (average of the four), Weekly Hero Quest (7 day toggles, spoil, 1 free swap a week, type your own), long-term goals (pillar, length, times a week, + to add to today), Settings (backup/restore). Today shows a Hero strip (tap = today done).
 - Do it now: a day counts as logged with a weigh-in and calories. After the 4 AM rollover, a missed log shows a random task from your list on Today, with Done and Swap.
 
 ## Not yet
-Hero tab, food search, muscle map, This Week, spoils and forfeits, calendar, Health, notifications, Supabase sync.
+food search, muscle map, This Week, spoils and forfeits, calendar, Health, notifications, Supabase sync.
 
 ## Dev
 ```

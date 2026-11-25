@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import Today from './Today'
 import CloseDay from './CloseDay'
-import Later from './Later'
 import Body from './Body'
 import Soul from './Soul'
 import Mind from './Mind'
+import HeroTab from './Hero'
 import { Runner } from './Workout'
 import { useNow } from './useNow'
 import { dayStatus, getDay, useStore } from './store'
@@ -36,7 +36,7 @@ export default function App() {
 
   return (
     <div className="app">
-      {tab === 'today' ? <Today onClose={() => setClosing(true)} /> : tab === 'body' ? <Body /> : tab === 'soul' ? <Soul /> : tab === 'mind' ? <Mind /> : <Later tab={TABS.find(t => t.id === tab)!.label} />}
+      {tab === 'today' ? <Today onClose={() => setClosing(true)} /> : tab === 'body' ? <Body /> : tab === 'soul' ? <Soul /> : tab === 'mind' ? <Mind /> : <HeroTab />}
       <nav className="tabs" aria-label="Tabs">
         {TABS.map(t => (
           <button key={t.id} className={'tab' + (tab === t.id ? ' on' : '')} aria-label={t.label} aria-current={tab === t.id} onClick={() => setTab(t.id)}>{t.icon}</button>

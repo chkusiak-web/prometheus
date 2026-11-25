@@ -10,7 +10,7 @@ export const PILLARS: { id: Pillar; name: string; color: string }[] = [
 ]
 export const pillarOf = (p: Pillar) => PILLARS.find(x => x.id === p)!
 
-export interface Block { id: string; name: string; pillar: Pillar; start: number; len: number; done: boolean; doneAt?: number; trait?: string; area?: string }
+export interface Block { id: string; name: string; pillar: Pillar; start: number; len: number; done: boolean; doneAt?: number; trait?: string; area?: string; goalId?: string }
 export interface Sleep { bed: number; wake: number; quality: number } // minutes since midnight
 export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; closedAt?: number; water?: number; sleep?: Sleep }
 export interface WSet { w: number; r: number; done: boolean }
@@ -38,7 +38,14 @@ export interface State {
   /** Your own Mind tasks, by area. */
   myTasks?: Record<string, string[]>
   checkins?: CheckIn[]
+  /** Weekly Hero Quest, keyed by the week's Monday. */
+  hero?: Record<string, Hero>
+  goals?: Goal[]
 }
+export interface Hero { name: string; spoil: string; done: boolean[]; swaps: number }
+export interface Goal { id: string; name: string; pillar: Pillar; len: number; freq: number }
+export const HERO_QUESTS = ['Run 5K every day', 'Finish a book this week', 'Call a different person every day', 'No phone after 9 pm, all week', 'Write 3,500 words this week', 'Train 60 minutes every day', '10,000 steps every day', 'Sleep 7h+ every night']
+export const HERO_SPOILS = ['Dinner out / takeaway', 'Brunch out', 'Buy a book', 'A concert or comedy show', 'Bottle of wine']
 export interface CheckIn { ts: number; day: string; corner: string; word: string; stress: number; drive: number }
 
 export const DEFAULT_PLAN: Plan = {
@@ -130,6 +137,9 @@ export const actions = {
   setPlan(p: Plan) { set({ ...state, plan: p }) },
   setWithhold(k: string, w: Withhold) { set({ ...state, withholds: { ...state.withholds, [k]: w } }) },
   addMyQuest(trait: string, q: string) { set({ ...state, myQuests: { ...state.myQuests, [trait]: [...(state.myQuests?.[trait] || []), q] } }) },
+  setHero(week: string, h: Hero) { set({ ...state, hero: { ...state.hero, [week]: h } }) },
+  saveGoal(g: Goal) { const gs = state.goals || []; set({ ...state, goals: gs.some(x => x.id === g.id) ? gs.map(x => x.id === g.id ? g : x) : [...gs, g] }) },
+  removeGoal(id: string) { set({ ...state, goals: (state.goals || []).filter(g => g.id !== id) }) },
   addMyTask(area: string, t: string) { set({ ...state, myTasks: { ...state.myTasks, [area]: [...(state.myTasks?.[area] || []), t] } }) },
   addCheckIn(c: CheckIn) { set({ ...state, checkins: [...(state.checkins || []), c] }) },
   setTriangle(k: string, t: string[]) { patchDay(k, d => ({ ...d, triangle: t })) },

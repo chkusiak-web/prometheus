@@ -4,6 +4,7 @@ import { dayLetter, headDate, lenLab, tlab, weekOf } from './date'
 import { useNow } from './useNow'
 import BlockSheet, { type SheetMode } from './BlockSheet'
 import DoItNow from './DoItNow'
+import { heroOf, monday } from './hero'
 
 const HOUR = 72 // px per hour on the agenda
 
@@ -33,6 +34,7 @@ export default function Today({ onClose }: { onClose: () => void }) {
             return <div key={k} className={'wd ' + cls} aria-label={`${headDate(k)}${won ? ', won' : ''}`}>{won ? <Check /> : dayLetter(k)}</div>
           })}
         </div>
+        <HeroStrip today={today} />
         <div className="pillars" aria-label="Today's progress">
           {(['mind', 'body', 'soul'] as const).map(p => (
             <span key={p} className={'pchip' + (st.has[p] ? ' on' : '')} style={{ ['--c' as string]: pillarOf(p).color }}>{pillarOf(p).name}</span>
@@ -122,5 +124,15 @@ function Timeline({ blocks, mins, onTap, onToggle }: { blocks: Block[]; mins: nu
         })}
       </div>
     </div>
+  )
+}
+
+function HeroStrip({ today }: { today: string }) {
+  const s = useStore(x => x)
+  const h = heroOf(s, today), i = weekOf(today).indexOf(today), n = h.done.filter(Boolean).length
+  return (
+    <button className={'herostrip' + (h.done[i] ? ' on' : '')} onClick={() => actions.setHero(monday(today), { ...h, done: h.done.map((d, j) => j === i ? !d : d) })} aria-label={`Hero: ${h.name}, ${n} of 7. Tap to mark today ${h.done[i] ? 'not done' : 'done'}`}>
+      <span className="hs-c">{h.done[i] ? '✓' : ''}</span><b>Hero</b><span className="hs-n">{h.name}</span><span className="hs-k">{n} of 7</span>
+    </button>
   )
 }
