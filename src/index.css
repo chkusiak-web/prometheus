@@ -246,13 +246,6 @@ h1,h2{margin:0}
 .name:focus-visible{outline:none;border-bottom-color:var(--cobalt)}
 
 /* Soul */
-.quest{background:var(--gold);color:var(--ink);border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
-.quest .row.between{width:100%}
-.quest .mini{background:rgba(255,255,255,.6);box-shadow:none}
-.qtext{font-size:34px;overflow-wrap:anywhere}
-.qtext.done{text-decoration:line-through;opacity:.6}
-.skycard{background:var(--ink);color:#fff;border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:6px}
-.skycard .lab,.skycard .small{color:#aaa49c}
 .sky .arch{fill:#55524d;font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-family:var(--f)}
 .qrow{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--bone);border-radius:12px;padding:10px 12px;box-shadow:none}
 .qrow>span:first-child{display:flex;flex-direction:column;min-width:0}
@@ -337,3 +330,23 @@ button.htile:active{transform:scale(.98)}
 .fire-stage{flex:1;position:relative;display:flex;justify-content:center;align-items:flex-end;min-height:300px}
 .lastwk{position:absolute;left:12%;right:12%;border-top:1.5px dashed #5a5a60}
 .flame{width:216px;height:264px;flex:none;background:url(../flame-sheet.png) 0 0/900% 100% no-repeat;transform:scale(var(--s));transform-origin:50% 100%;animation:flame 0.9s steps(8) infinite}
+/* Soul: prototype quest card and full-bleed constellation */
+.quest{background:var(--gold);color:var(--ink);border-radius:24px;padding:16px;display:flex;flex-direction:column;gap:8px;min-height:178px;animation:qin .36s var(--ease)}
+.quest .q{font-stretch:75%;font-weight:700;font-size:28px;line-height:1.02;overflow-wrap:anywhere}
+.quest .qbtns{display:flex;gap:4px;align-items:center;margin-top:auto}
+.quest .btn{background:#fff;color:var(--ink);border-radius:999px;padding:12px 20px;font-weight:700;font-size:15px}
+.quest .btn.ghost{background:transparent;padding:12px 10px}
+.quest.won{background:var(--ink);color:#fff}
+.quest.won .lab{color:var(--gold)}.quest.won .small{color:#c9c2b8}.quest.won .tlink{color:#fff}
+@keyframes qin{from{opacity:0;transform:translateY(8px)}}
+.hearth{margin:auto -16px calc(-1 * (var(--sb) + 100px));background:var(--ink);border-radius:30px 30px 0 0;color:#fff;position:relative;flex:1;min-height:340px;display:flex;justify-content:center;align-items:flex-start;padding:40px 0 calc(var(--sb) + 100px);overflow:hidden}
+.soulpct{position:absolute;top:16px;left:18px;z-index:2}
+.soulpct .n{font-size:44px;line-height:1}.soulpct small{font-size:15px}
+.soulpct .lab{color:#9b958c}
+.soulsky{width:268px;height:268px;flex:none;overflow:visible}
+.soulsky .arch{font-family:var(--f);font-size:10px;font-weight:800;letter-spacing:2px;fill:var(--gold)}
+.soulsky .weak{font-family:var(--f);font-size:11.5px;font-weight:800;fill:var(--ember);stroke:var(--ink);stroke-width:4px;paint-order:stroke}
+.soulsky .st{cursor:pointer;outline:none}
+.soulsky .st:focus-visible circle:last-child{stroke:#fff;stroke-width:1.5}
+.tabs.dark{background:#2a2a2e}
+.app:has(.screen.soul)::after{display:none}
