@@ -1,0 +1,39 @@
+// !$*UTF8*$!
+{
+ archiveVersion = 1;
+ classes = {};
+ objectVersion = 56;
+ objects = {
+  100000000000000000000001 = {isa = PBXProject; attributes = {LastUpgradeCheck = 2720;}; buildConfigurationList = 10000000000000000000000B; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; knownRegions = (en, Base); mainGroup = 100000000000000000000003; productRefGroup = 100000000000000000000005; projectDirPath = ""; projectRoot = ""; targets = (100000000000000000000002);};
+  100000000000000000000002 = {isa = PBXNativeTarget; buildConfigurationList = 10000000000000000000000C; buildPhases = (100000000000000000000009, 10000000000000000000000A); buildRules = (); dependencies = (); name = Prometheus; productName = Prometheus; productReference = 100000000000000000000006; productType = "com.apple.product-type.application";};
+  100000000000000000000003 = {isa = PBXGroup; children = (100000000000000000000004, 100000000000000000000005); sourceTree = "<group>";};
+  100000000000000000000004 = {isa = PBXGroup; children = (100000000000000000000007, 100000000000000000000008); path = Prometheus; sourceTree = "<group>";};
+  100000000000000000000005 = {isa = PBXGroup; children = (100000000000000000000006); name = Products; sourceTree = "<group>";};
+  100000000000000000000006 = {isa = PBXFileReference; explicitFileType = wrapper.application; path = Prometheus.app; sourceTree = BUILT_PRODUCTS_DIR;};
+  100000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrometheusApp.swift; sourceTree = "<group>";};
+  100000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>";};
+  100000000000000000000009 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000011); runOnlyForDeploymentPostprocessing = 0;};
+  10000000000000000000000A = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (100000000000000000000012); runOnlyForDeploymentPostprocessing = 0;};
+  10000000000000000000000B = {isa = XCConfigurationList; buildConfigurations = (10000000000000000000000D, 10000000000000000000000E); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+  10000000000000000000000C = {isa = XCConfigurationList; buildConfigurations = (10000000000000000000000F, 100000000000000000000010); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
+  10000000000000000000000D = {isa = XCBuildConfiguration; name = Debug; buildSettings = {
+   CLANG_ENABLE_MODULES = YES;
+   IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+   SDKROOT = iphoneos;
+   SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+   SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+  };};
+  10000000000000000000000E = {isa = XCBuildConfiguration; name = Release; buildSettings = {
+   CLANG_ENABLE_MODULES = YES;
+   IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+   SDKROOT = iphoneos;
+   SWIFT_COMPILATION_MODE = wholemodule;
+  };};
+  10000000000000000000000F = {isa = XCBuildConfiguration; name = Debug; baseConfigurationReference = 100000000000000000000013; buildSettings = {};};
+  100000000000000000000010 = {isa = XCBuildConfiguration; name = Release; baseConfigurationReference = 100000000000000000000013; buildSettings = {};};
+  100000000000000000000011 = {isa = PBXBuildFile; fileRef = 100000000000000000000007;};
+  100000000000000000000012 = {isa = PBXBuildFile; fileRef = 100000000000000000000008;};
+  100000000000000000000013 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Prometheus.xcconfig; sourceTree = SOURCE_ROOT;};
+ };
+ rootObject = 100000000000000000000001;
+}
