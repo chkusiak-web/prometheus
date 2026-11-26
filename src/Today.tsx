@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { actions, dayStatus, getDay, pillarOf, useStore, type Block } from './store'
+import { reviewSunday } from './bodyReview'
 import { dayLetter, headDate, lenLab, tlab, weekOf } from './date'
 import { useNow } from './useNow'
 import BlockSheet, { type SheetMode } from './BlockSheet'
@@ -10,7 +11,7 @@ const HOUR = 96 // px per hour on the agenda, as in the prototype
 
 const Check = () => <svg width="18" height="18" viewBox="0 0 12 12"><path d="M2 6.5 5 9l5-6" stroke="currentColor" strokeWidth="1.8" fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>
 
-export default function Today({ onClose }: { onClose: () => void }) {
+export default function Today({ onClose, openBody }: { onClose: () => void; openBody: (entry: 'food' | 'review') => void }) {
   const { today, mins } = useNow()
   const days = useStore(s => s.days)
   const day = getDay({ v: 1, days }, today)
@@ -18,13 +19,16 @@ export default function Today({ onClose }: { onClose: () => void }) {
 
   const upNext = day.blocks.find(b => !b.done && b.start + b.len > mins) || day.blocks.find(b => !b.done)
   const evening = mins >= 18 * 60
+  const sunday = reviewSunday(today)
+  const reviewDue = useStore(s => sunday === today && !s.bodyReviews?.[sunday])
+  const planToday = () => setSheet({ kind: 'add', day: today, start: nextSlot(day.blocks, mins) })
 
   return (
     <main className="screen today">
       <header className="top">
         <div className="toprow">
           <h1 className="cond">{headDate(today)}</h1>
-          <button className="pill light" onClick={onClose}>{day.closedAt ? 'Closed ✓' : 'Close day'}</button>
+          {(!evening || day.closedAt) && <button className="pill light" onClick={onClose}>{day.closedAt ? 'Closed ✓' : 'Close day'}</button>}
         </div>
         <div className="week">
           {weekOf(today).map(k => {
@@ -35,6 +39,11 @@ export default function Today({ onClose }: { onClose: () => void }) {
         </div>
         <HeroStrip today={today} />
       </header>
+
+      <div className="today-quick-actions">
+        <button className="pill ghost" onClick={() => openBody('food')}>Log food</button>
+        {reviewDue && <button className="pill" onClick={() => openBody('review')}>Sunday review due</button>}
+      </div>
 
       <DoItNow today={today} />
 
@@ -48,9 +57,10 @@ export default function Today({ onClose }: { onClose: () => void }) {
         </section>
       ) : (
         <section className="upnext empty">
-          <div className="lab">Up next</div>
-          <div className="cond un-name">{day.blocks.length ? 'All done' : 'Nothing planned'}</div>
-          {!day.blocks.length && <p className="small">Add a Mind, a Body and a Soul block to win the day.</p>}
+          <div className="row between">
+            <strong>{day.blocks.length ? 'All done' : 'Nothing planned'}</strong>
+            {!day.blocks.length && <button className="pill" onClick={planToday}>Plan today</button>}
+          </div>
         </section>
       )}
 
@@ -61,7 +71,7 @@ export default function Today({ onClose }: { onClose: () => void }) {
       )}
 
       <section className="agenda">
-        <div className="ag-head"><div className="lab">Today</div><button className="pill" onClick={() => setSheet({ kind: 'add', day: today, start: nextSlot(day.blocks, mins) })}>+ Today</button></div>
+        <div className="ag-head"><div className="lab">Today</div><button className="pill" onClick={planToday}>+ Today</button></div>
         <Timeline blocks={day.blocks} mins={mins} onTap={b => setSheet({ kind: 'actions', id: b.id })} />
       </section>
 
