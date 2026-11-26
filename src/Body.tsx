@@ -21,13 +21,13 @@ const agoL = (d?: number) => d == null ? 'Not trained yet' : d === 0 ? 'Last tra
 const sleepH = (sl?: { bed: number; wake: number }) => sl ? ((sl.wake - sl.bed + 1440) % 1440) / 60 : NaN
 const hm = (h: number) => Number.isNaN(h) ? '–' : `${Math.floor(h)}:${String(Math.round((h % 1) * 60)).padStart(2, '0')}`
 
-export default function Body() {
+export default function Body({ entry }: { entry?: 'food' | 'review' }) {
   const { today } = useNow()
   const s = useStore(x => x)
   const st = bodyStats(s, today)
   const suggested = suggestedBodySession(s, today)
   const mm = muscleMap(s, today, suggested?.lifts.map(([name]) => name))
-  const [sheet, setSheet] = useState<Sheet>(null)
+  const [sheet, setSheet] = useState<Sheet>(entry === 'food' ? 'food' : null)
   const [muscle, setMuscle] = useState<string | null>(null)
   const [back, setBack] = useState(false)
   const eaten = st.kcal(today)
@@ -52,14 +52,19 @@ export default function Body() {
           <span className="lab">Sleep</span><span className="n">{hm(sleepH(sl))}</span>
           <span className="d" style={{ color: '#C98A00' }}>{Number.isNaN(slAvg) ? 'Last night' : `avg ${hm(slAvg)}`}</span>
         </button>
-        <button className="bstat" onClick={() => setSheet('workout')} aria-label="Start workout">
+        <div className="bstat">
           <span className="lab">Lifting days</span><span className="n">{st.workouts}/{st.plan.workouts}</span>
           <span className="d" style={{ color: st.workouts >= st.plan.workouts ? 'var(--green)' : 'var(--muted)' }}>this week</span>
-        </button>
+        </div>
       </section>
 
+      <div className="body-quick-actions">
+        <button className="pill" onClick={() => setSheet('workout')}>Start workout</button>
+        <button className="pill ghost" onClick={() => setSheet('food')}>Log food</button>
+        <button className="link" onClick={() => setSheet('log')}>More logs</button>
+      </div>
       <BodyWeek today={today} />
-      <BodyTracking today={today} />
+      <BodyTracking today={today} openReview={entry === 'review'} />
 
       <div className="figwrap">
         <style>{css}</style>
@@ -69,7 +74,6 @@ export default function Body() {
         <div className={'figseg' + (back ? ' bk' : '')} role="group" aria-label="Side"><i className="fsth" /><button className={back ? '' : 'on'} aria-pressed={!back} onClick={() => setBack(false)}>Front</button><button className={back ? 'on' : ''} aria-pressed={back} onClick={() => setBack(true)}>Back</button></div>
       </div>
       <div className="mlegend"><span><i style={{ background: 'var(--ember)' }} />Today's plan</span><span><i style={{ background: '#A8201A' }} />Sore</span><span><i style={{ background: '#E6E0D8', boxShadow: 'inset 0 0 0 1.5px #B3A99D' }} />Ready</span></div>
-      <button className="pill big" onClick={() => setSheet('log')}>+ Log</button>
 
       {sheet === 'food' && <FoodSheet today={today} s={s} target={st.target} close={close} />}
 
@@ -81,7 +85,6 @@ export default function Body() {
             {sheet === 'log' && (
               <>
                 <h2 className="cond">Log</h2>
-                <button className="lgo" onClick={() => setSheet('workout')}><span className="cond">Start workout</span><small>{suggested?.name ?? mm.next} · up next</small></button>
                 <div className="lgrid">
                   <button className="lgx" style={{ ['--c' as string]: 'var(--green)' }} onClick={() => setSheet('food')}><i className="fill" style={{ height: `${Math.min(100, eaten / st.target * 100)}%` }} /><span className="lab">Food</span><span className="lgn"><b className="cond">{Math.max(0, st.target - eaten).toLocaleString()}</b><small>kcal left</small></span></button>
                   <button className="lgx" style={{ ['--c' as string]: 'var(--cobalt)' }} onClick={() => actions.setWater(today, water >= 8 ? 0 : water + 1)} aria-label={`Water ${water} of 8. Tap to add a glass.`}><i className="fill" style={{ height: `${water / 8 * 100}%` }} /><span className="lab">Water · tap +1</span><span className="lgn"><b className="cond">{water}/8</b><small>glasses</small></span></button>
@@ -206,6 +209,7 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
   const [hit, setHit] = useState<FoodRow | null>(null)
   const [ready, setReady] = useState(false)
   const [quick, setQuick] = useState(false)
+  const [expandedBasics, setExpandedBasics] = useState(false)
   const [scanning, setScanning] = useState(false)
   const [branded, setBranded] = useState<{ query: string; rows: FoodRow[]; failed?: boolean }>()
   const scanCode = useCallback((code: string) => {
@@ -238,6 +242,7 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
   const catalogProducts = branded?.query === query ? branded.rows : []
   const legacyProducts = ready && query && !barcode ? searchFoods(query, true) : []
   const productResults = [...catalogProducts, ...legacyProducts]
+  const visibleBasics = expandedBasics ? results : results.slice(0, 4)
   const productsPending = query.length >= 2 && branded?.query !== query
   const searchKey = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '')
   const key = searchKey(query)
@@ -271,8 +276,11 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
       <div className="seg" role="radiogroup" aria-label="Meal">
         {MEALS.map(m => <button type="button" key={m} role="radio" aria-checked={meal === m} className={meal === m ? 'on' : ''} onClick={() => setMeal(m)}>{m}</button>)}
       </div>
-      <button className="pill ghost" onClick={() => setScanning(true)}>Scan barcode</button>
-      <input className="name" type="search" placeholder={ready ? 'Search a food or enter a barcode' : 'Loading foods…'} value={q} onChange={e => setQ(e.target.value)} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
+      <div className="food-search-actions">
+        <input className="name" type="search" placeholder={ready ? 'Search food or barcode' : 'Loading foods…'} value={q}
+          onChange={e => { setQ(e.target.value); setExpandedBasics(false) }} autoComplete="off" autoCorrect="off" aria-label="Search foods" enterKeyHint="search" />
+        <button className="pill ghost" onClick={() => setScanning(true)}>Scan barcode</button>
+      </div>
       <div className="flist">
         {matchingRecent.length > 0 && (
           <>
@@ -283,11 +291,14 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
         {query && results.length > 0 && (
           <>
             <div className="lab">Basic foods</div>
-            {results.map((r, i) => (
+            {visibleBasics.map((r, i) => (
               <button key={i} className="frow" onClick={() => setHit(r)}><span><b>{tidy(r[0])}</b><span className="small">{servL(r)} · {Math.round(r[1] * servingAmount(r) / 100)} kcal</span></span><span aria-hidden>›</span></button>
             ))}
           </>
         )}
+        {results.length > 4 && <button className="link" aria-expanded={expandedBasics} onClick={() => setExpandedBasics(!expandedBasics)}>
+          {expandedBasics ? 'Show fewer basic foods' : 'Show more basic foods'}
+        </button>}
         {productResults.length > 0 && (
           <>
             <div className="lab">Branded foods</div>
@@ -320,8 +331,9 @@ function Food({ today, s, target }: { today: string; s: State; target: number })
 
 function Portion({ row, meal, back, add }: { row: FoodRow; meal: Meal; back: () => void; add: (kcal: number, extra: { p: number; c: number; f: number; grams?: number }) => void }) {
   const units = portionUnits(row)
-  const [unit, setUnit] = useState(0)
-  const [quantity, setQuantity] = useState('1')
+  const cup = units.findIndex(measure => measure.label === 'Cups')
+  const [unit, setUnit] = useState(cup >= 0 ? cup : 0)
+  const [quantity, setQuantity] = useState(() => cup >= 0 ? String(servingAmount(row) / units[cup].amount) : '1')
   const q = Number(quantity)
   const amount = q * units[unit].amount
   const valid = Number.isFinite(amount) && amount > 0 && amount <= 100_000
