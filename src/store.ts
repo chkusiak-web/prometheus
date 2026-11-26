@@ -15,7 +15,7 @@ export interface Block { id: string; name: string; pillar: Pillar; start: number
 export interface Sleep { bed: number; wake: number; quality: number } // minutes since midnight
 export interface Day { blocks: Block[]; rating?: number; triangle?: string[]; closedAt?: number; water?: number; sleep?: Sleep }
 export interface WSet { w: number; r: number; done: boolean }
-export interface WEx { name: string; sets: WSet[]; restSeconds?: number; perSide?: boolean }
+export interface WEx { name: string; sets: WSet[]; restSeconds?: number; perSide?: boolean; targetRange?: [number, number] }
 export interface Workout { id: string; name: string; day: string; startedAt: number; endedAt?: number; ex: WEx[]; cur: number; bodySession?: number }
 export interface FoodItem { id: string; meal: Meal; name: string; kcal: number; p?: number; c?: number; f?: number; grams?: number }
 export type Meal = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'

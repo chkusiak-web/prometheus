@@ -61,13 +61,13 @@ export function bodyPlanSession(index: number): Session | undefined {
 
 const shortDate = (date: string) => fromKey(date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
 
-function workingSets(state: State, [name, count, min, , perSide]: Prescription): WEx {
+function workingSets(state: State, [name, count, min, max, perSide]: Prescription): WEx {
   const last = [...(state.workouts || [])].reverse().find(workout =>
     hasCompletedSets(workout) && workout.ex.some(exercise => exercise.name === name && exercise.sets.some(set => set.done && set.r > 0)))
   const previous = last?.ex.filter(exercise => exercise.name === name).flatMap(exercise => exercise.sets.filter(set => set.done && set.r > 0))
   const weight = previous?.at(-1)?.w ?? 0
   return {
-    name, perSide, restSeconds: count >= 3 ? 90 : 60,
+    name, perSide, targetRange: [min, max], restSeconds: count >= 3 ? 90 : 60,
     sets: Array.from({ length: count }, () => ({ w: weight, r: min, done: false })),
   }
 }

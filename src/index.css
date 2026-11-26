@@ -440,3 +440,14 @@ button.htile:active{transform:scale(.98)}
 .body-review-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
 .body-review-metrics div{background:var(--bone);border-radius:10px;padding:8px}
 .body-review-metrics dd{margin:0}
+
+.body-quick-actions,.today-quick-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.body-quick-actions .link{margin-inline-start:auto}
+.today-quick-actions .pill.ghost{background:var(--paper)}
+.food-search-actions{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px}
+.food-search-actions .name{width:100%;min-width:0}
+.food-search-actions .pill{white-space:nowrap}
+.body-review{scroll-margin-top:calc(var(--st) + 12px)}
+.body-review details[open] summary{margin-bottom:12px}
+.body-review-decisions{min-width:0;border:0;padding:0;margin:0;display:grid;gap:10px}
+.body-review-decisions legend{margin-bottom:8px}

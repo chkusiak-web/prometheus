@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { addDays, fromKey } from './date'
 import { actions, useStore, type BodyReview } from './store'
 import { bodyReviewMetrics, reviewSunday, stepTargetOn } from './bodyReview'
@@ -49,8 +49,6 @@ function WeeklyReview({ sunday, today }: { sunday: string; today: string }) {
   const [target, setTarget] = useState(saved?.stepTarget?.toString() ?? '')
   const [status, setStatus] = useState('')
   const metrics = bodyReviewMetrics(state, sunday)
-  const start = addDays(sunday, -7)
-  const end = addDays(sunday, -1)
   const monday = addDays(sunday, 1)
   const nextDay = addDays(today, 1)
   const starts = nextDay > monday ? nextDay : monday
@@ -75,9 +73,10 @@ function WeeklyReview({ sunday, today }: { sunday: string; today: string }) {
 
   return (
     <form className="body-tracking-form" onSubmit={save}>
-      <p className="small">{dateLabel(start)}–{dateLabel(end)}. Averages use logged days. Protein uses days with protein recorded for every entry.</p>
+      <p className="small">Averages use logged days. Protein uses days with protein recorded for every entry.</p>
       <dl className="body-review-metrics">{statRows.map(([label, value]) =>
         <div key={label}><dt className="lab">{label}</dt><dd>{value}</dd></div>)}</dl>
+      <fieldset className="body-review-decisions"><legend className="lab">Next week</legend>
       <label className="field"><span className="lab">Knee response</span>
         <select value={knee} onChange={event => setKnee(event.target.value as BodyReview['knee'])}>
           <option value="">Choose an option</option><option value="fine">Felt fine</option>
@@ -93,26 +92,30 @@ function WeeklyReview({ sunday, today }: { sunday: string; today: string }) {
       <p className="small">{saved?.targetStarts && target === saved.stepTarget?.toString()
         ? `Target starts ${dateLabel(saved.targetStarts)}.`
         : `A new target starts ${dateLabel(starts)}.`}</p>
+      </fieldset>
       <button className="pill" type="submit">Save review</button>
       {status && <p className="small" role="status">{status}</p>}
     </form>
   )
 }
 
-export default function BodyTracking({ today }: { today: string }) {
+export default function BodyTracking({ today, openReview }: { today: string; openReview?: boolean }) {
   const [day, setDay] = useState(today)
   const selected = day > today ? today : day
   const sunday = reviewSunday(today)
   const saved = useStore(s => Boolean(s.bodyReviews?.[sunday]))
+  const review = useRef<HTMLElement>(null)
+  useEffect(() => { if (openReview) review.current?.scrollIntoView({ block: 'start' }) }, [openReview])
   return (
     <>
       <section className="body-tracking" aria-label="Daily steps">
         <h2 className="cond">Steps</h2>
         <StepForm key={selected} day={selected} today={today} pickDay={setDay} />
       </section>
-      <section className="body-tracking" aria-label="Sunday review">
-        <details>
-          <summary><strong>{saved ? 'Sunday review saved' : 'Sunday review'} · {dateLabel(sunday)}</strong></summary>
+      <section ref={review} className="body-tracking body-review" aria-label="Sunday review">
+        <details open={openReview || undefined}>
+          <summary><strong>{saved ? 'Sunday review saved' : sunday === today ? 'Sunday review due' : 'Sunday review'}</strong>
+            <span className="small"> · {dateLabel(addDays(sunday, -7))}–{dateLabel(addDays(sunday, -1))}</span></summary>
           <WeeklyReview key={sunday} sunday={sunday} today={today} />
         </details>
       </section>

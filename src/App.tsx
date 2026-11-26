@@ -20,6 +20,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('today')
+  const [bodyEntry, setBodyEntry] = useState<'food' | 'review'>()
   const [closing, setClosing] = useState(false)
   const { today } = useNow()
   const won = useStore(s => dayStatus(getDay(s, today)).won)
@@ -76,10 +77,10 @@ export default function App() {
 
   return (
     <div ref={app} className="app">
-      {tab === 'today' ? <Today onClose={() => setClosing(true)} /> : tab === 'body' ? <Body /> : tab === 'soul' ? <Soul /> : tab === 'mind' ? <Mind /> : <HeroTab />}
+      {tab === 'today' ? <Today onClose={() => setClosing(true)} openBody={entry => { setBodyEntry(entry); setTab('body') }} /> : tab === 'body' ? <Body entry={bodyEntry} /> : tab === 'soul' ? <Soul /> : tab === 'mind' ? <Mind /> : <HeroTab />}
       <nav className={'tabs' + (tab === 'soul' || tab === 'hero' ? ' dark' : '')} aria-label="Tabs">
         {TABS.map(t => (
-          <button key={t.id} className={'tab' + (tab === t.id ? ' on' : '')} aria-label={t.label} aria-current={tab === t.id} onClick={() => setTab(t.id)}>{t.icon}</button>
+          <button key={t.id} className={'tab' + (tab === t.id ? ' on' : '')} aria-label={t.label} aria-current={tab === t.id} onClick={() => { setBodyEntry(undefined); setTab(t.id) }}>{t.icon}</button>
         ))}
       </nav>
       <Runner />
