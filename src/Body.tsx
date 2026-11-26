@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } 
 import { actions, getDay, MEALS, useStore, type FoodItem, type Meal, type Plan, type State } from './store'
 import FoodScanner from './FoodScanner'
 import { isBarcode, loadFoods, lookupBarcode, portionUnits, searchBrandedFoods, searchFoods, servingAmount, servL, shortName, tidy, type FoodRow } from './foods'
+import BodyTracking from './BodyTracking'
 import BodyWeek, { suggestedBodySession } from './BodyWeek'
 import { Preview } from './Workout'
 import { addDays, fromHHMM, fromKey, toHHMM } from './date'
@@ -58,6 +59,7 @@ export default function Body() {
       </section>
 
       <BodyWeek today={today} />
+      <BodyTracking today={today} />
 
       <div className="figwrap">
         <style>{css}</style>

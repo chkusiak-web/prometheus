@@ -22,12 +22,35 @@ export type Meal = 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack'
 export const MEALS: Meal[] = ['Breakfast', 'Lunch', 'Dinner', 'Snack']
 export interface Plan { goal: number; pace: number; workouts: number; maint: number; floor: number; small: string; big: string; wh: string[] }
 export interface Withhold { missed: ('weigh-in' | 'calories')[]; task: string; done: boolean }
+export interface BodyReviewMetrics {
+  stepDays: number
+  averageSteps?: number
+  weighInDays: number
+  averageWeight?: number
+  liftingDays: number
+  foodDays: number
+  averageCalories?: number
+  proteinDays: number
+  averageProtein?: number
+}
+
+export interface BodyReview {
+  metrics: BodyReviewMetrics
+  knee: '' | 'fine' | 'some' | 'limited'
+  notes: string
+  stepTarget?: number
+  targetStarts?: string
+}
+
 export interface State {
   v: 1
   days: Record<string, Day>
   /** First day the app was used; missed-log checks start from here. */
   since?: string
   weights?: Record<string, number>
+  steps?: Record<string, number>
+  stepTargets?: Record<string, number>
+  bodyReviews?: Record<string, BodyReview>
   food?: Record<string, FoodItem[]>
   plan?: Plan
   withholds?: Record<string, Withhold>
@@ -134,6 +157,26 @@ export const actions = {
   },
   closeDay(k: string, rating: number, triangle: string[]) {
     patchDay(k, d => ({ ...d, rating, triangle, closedAt: Date.now() }))
+  },
+  setSteps(day: string, count: number | null) {
+    if (count != null && (!Number.isInteger(count) || count < 0 || count > 100_000)) return false
+    const steps = { ...state.steps }
+    if (count == null) delete steps[day]
+    else steps[day] = count
+    set({ ...state, steps })
+    return true
+  },
+  saveBodyReview(sunday: string, review: BodyReview) {
+    const { stepTarget, targetStarts } = review
+    if (stepTarget != null && (!targetStarts || !Number.isInteger(stepTarget) || stepTarget < 1 || stepTarget > 100_000)) return false
+    set({
+      ...state,
+      bodyReviews: { ...state.bodyReviews, [sunday]: review },
+      stepTargets: stepTarget != null && targetStarts
+        ? { ...state.stepTargets, [targetStarts]: stepTarget }
+        : state.stepTargets,
+    })
+    return true
   },
   setWeight(k: string, lb: number | null) {
     const w = { ...state.weights }
