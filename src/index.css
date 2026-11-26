@@ -426,6 +426,11 @@ button.htile:active{transform:scale(.98)}
 .body-week-row summary{cursor:pointer}
 .body-week-row select{max-width:100%;font-size:16px}
 
+.body-plan-nav{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px}
+.body-plan-nav select,.body-plan-move input{font-size:16px;min-width:0}
+.body-plan-move{display:flex;align-items:end;flex-wrap:wrap;gap:8px;margin-top:10px}
+.body-plan-move .field{flex:1;min-width:130px}
+
 .body-tracking{background:var(--paper);border-radius:20px;padding:14px;display:grid;gap:12px}
 .body-tracking h2{font-size:24px}
 .body-tracking-form{display:grid;gap:10px}

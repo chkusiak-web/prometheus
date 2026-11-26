@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react'
-import { addDays, nowInfo } from './date'
+import { nowInfo } from './date'
+import { bodyPlanDates } from './bodyPlanDates'
 
 export type Pillar = 'mind' | 'body' | 'soul' | 'todo'
 export const PILLARS: { id: Pillar; name: string; color: string }[] = [
@@ -54,7 +55,7 @@ export interface State {
   plan?: Plan
   withholds?: Record<string, Withhold>
   workouts?: Workout[]
-  /** One date per starter session, in template order. */
+  /** One date per Body plan session, in template order. Old backups may contain seven dates. */
   bodyWeek?: string[]
   /** The workout in progress, kept so leaving the app doesn't lose it. */
   run?: Workout | null
@@ -200,24 +201,23 @@ export const actions = {
   setWater(k: string, n: number) { patchDay(k, d => ({ ...d, water: Math.max(0, Math.min(12, n)) })) },
   setSleep(k: string, sl: Sleep | undefined) { patchDay(k, d => ({ ...d, sleep: sl })) },
   moveBodySession(index: number, destination: string, today: string) {
-    const dates = state.bodyWeek
-    if (!dates || !dates[index] || destination < today) return
+    if (!state.bodyWeek || destination < today) return false
+    const dates = bodyPlanDates(state.bodyWeek, today)
+    if (!dates[index]) return false
     const other = dates.indexOf(destination)
     if (other < 0 || index === other || [index, other].some(i =>
-      state.run?.bodySession === i || bodySessionDone(state, i))) return
+      state.run?.bodySession === i || bodySessionDone(state, i))) return false
     const next = [...dates]
     next[other] = dates[index]
     next[index] = destination
     set({ ...state, bodyWeek: next })
+    return true
   },
   startBodySession(index: number, name: string, ex: WEx[]) {
     const { today } = nowInfo()
     if (state.run || !ex.length || bodySessionDone(state, index) || plannedLiftOn(state, today)) return false
-    const dates = state.bodyWeek ? [...state.bodyWeek] : Array.from({ length: 7 }, (_, i) => addDays(today, i))
-    if (!dates[index]) return false
-    const other = dates.indexOf(today)
-    if (other >= 0 && other !== index) dates[other] = dates[index]
-    dates[index] = today
+    const dates = bodyPlanDates(state.bodyWeek, today)
+    if (dates[index] !== today) return false
     set({
       ...state,
       bodyWeek: dates,
