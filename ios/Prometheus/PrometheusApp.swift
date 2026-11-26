@@ -63,6 +63,8 @@ private struct PrometheusRootView: View {
                     .padding(16)
                     .background(Palette.paper, in: RoundedRectangle(cornerRadius: 20))
 
+                if selection == .hero { BackupView() }
+
                 if selection == .body {
                     Button("Try native input") { showingInputPreview = true }
                         .buttonStyle(.borderedProminent)
