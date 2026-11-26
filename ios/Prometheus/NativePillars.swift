@@ -70,6 +70,7 @@ struct NativeMindView: View {
     let log: NativeLog
     @State private var area: String?
     @State private var checkIn = false
+    @State private var initialCorner: HabitCatalog.Corner?
 
     var body: some View {
         let currentWeek = BodyDate.week(BodyDate.today)
@@ -78,7 +79,7 @@ struct NativeMindView: View {
             HStack {
                 Text("MIND").font(.prometheusTitle)
                 Spacer()
-                Button("Check in") { checkIn = true }.buttonStyle(PrometheusPill(fill: Palette.ink))
+                Button("Check in") { initialCorner = nil; checkIn = true }.buttonStyle(PrometheusPill(fill: Palette.ink))
             }
             let areas = (HabitCatalog.current?.cats ?? []).flatMap { category in
                 category.areas.map { area in
@@ -95,10 +96,8 @@ struct NativeMindView: View {
                     }.buttonStyle(.plain)
                 }
             }.prometheusCard()
-            if let entries = log.root["checkins"] as? [[String: Any]],
-               let last = entries.last, let word = last["word"] as? String {
-                LabeledContent("Last check-in", value: word).prometheusCard()
-            }
+            EmotionRing(log: log) { initialCorner = $0; checkIn = true }
+                .prometheusCard()
         }
         .sheet(isPresented: Binding(get: { area != nil }, set: { if !$0 { area = nil } })) {
             if let area {
@@ -106,7 +105,7 @@ struct NativeMindView: View {
                 ActivitySheet(log: log, name: area, pillar: "mind", templates: templates)
             }
         }
-        .sheet(isPresented: $checkIn) { EmotionCheckIn(log: log) }
+        .sheet(isPresented: $checkIn) { EmotionCheckIn(log: log, initialCorner: initialCorner) }
     }
 }
 
@@ -117,6 +116,7 @@ private struct EmotionCheckIn: View {
     @State private var word: String?
     @State private var stress = 3
     @State private var drive = 3
+    var initialCorner: HabitCatalog.Corner?
 
     var body: some View {
         NavigationStack {
@@ -154,7 +154,42 @@ private struct EmotionCheckIn: View {
                 }.prometheusCard().padding()
             }.background(Palette.bone).tint(Palette.ink).navigationTitle("Check in")
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+        }.onAppear { corner = initialCorner }
+    }
+}
+
+private struct EmotionRing: View {
+    let log: NativeLog
+    let choose: (HabitCatalog.Corner?) -> Void
+
+    var body: some View {
+        let corners = HabitCatalog.current?.corners ?? []
+        let entries = log.root["checkins"] as? [[String: Any]] ?? []
+        let today = entries.filter { $0["day"] as? String == BodyDate.today }
+        let dominant = corners.max { first, second in
+            entries.filter { $0["corner"] as? String == first.n }.count <
+                entries.filter { $0["corner"] as? String == second.n }.count
         }
+        return VStack(spacing: 12) {
+            ZStack {
+                Circle().strokeBorder(AngularGradient(colors: [Palette.ember, Color(hex: "#FFB000"),
+                    Color(hex: "#13A06F"), Color(hex: "#2F5BEA"), Palette.ember], center: .center), lineWidth: 9)
+                    .frame(width: 172, height: 172)
+                Button("Check in", systemImage: "plus") { choose(nil) }
+                    .buttonStyle(PrometheusPill(fill: entries.isEmpty ? Palette.stone : Color(hex: dominant?.color ?? "#D9D4CC").opacity(0.35), ink: Palette.ink))
+                ForEach(Array(corners.enumerated()), id: \.offset) { i, corner in
+                    let count = today.filter { $0["corner"] as? String == corner.n }.count
+                    Button(count == 0 ? corner.n : "\(corner.n) \(count)") { choose(corner) }
+                        .font(.caption.bold()).foregroundStyle(Palette.ink)
+                        .frame(minWidth: 56, minHeight: 44)
+                        .background(Color(hex: corner.color).opacity(0.38), in: Capsule())
+                        .offset(x: i % 2 == 0 ? -63 : 63, y: i < 2 ? -63 : 63)
+                }
+            }.frame(height: 184)
+            if let word = entries.last?["word"] as? String {
+                Text("Last check-in · " + word).font(.caption).foregroundStyle(Palette.muted)
+            }
+        }.frame(maxWidth: .infinity)
     }
 }
 

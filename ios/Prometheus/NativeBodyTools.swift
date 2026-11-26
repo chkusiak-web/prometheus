@@ -18,6 +18,12 @@ struct BodyToolView: View {
     @State private var number = ""
     @State private var goal = ""
     @State private var pace = ""
+    @State private var maintenance = ""
+    @State private var calorieFloor = ""
+    @State private var workouts = 5
+    @State private var smallReward = ""
+    @State private var bigReward = ""
+    @State private var tasks = ""
     @State private var bedtime = Date()
     @State private var wake = Date()
     @State private var quality = 3
@@ -60,6 +66,15 @@ struct BodyToolView: View {
             BodyDate.date(key).flatMap { date in weights[key].map { (date, $0) } }
         }
         let recent = (0..<7).compactMap { weights[BodyDate.add(today, days: -$0)] }
+        let previous = (7..<14).compactMap { weights[BodyDate.add(today, days: -$0)] }
+        let plan = log.root["plan"] as? [String: Any] ?? [:]
+        let target = plan["goal"] as? Double ?? 200
+        let weeklyPace = plan["pace"] as? Double ?? 1.5
+        let average = recent.isEmpty ? nil : recent.reduce(0, +) / Double(recent.count)
+        let change = previous.isEmpty ? nil : average.map { previous.reduce(0, +) / Double(previous.count) - $0 }
+        let loggingDays = days.filter { day in weights[day] != nil }.count
+        let foodDays = days.filter { day in (log.food[day] ?? []).contains { ($0["kcal"] as? Double ?? 0) > 0 } }.count
+        let targetLifts = plan["workouts"] as? Int ?? 4
         return Group {
             if !points.isEmpty {
                 Section("Trend") {
@@ -67,8 +82,19 @@ struct BodyToolView: View {
                         LineMark(x: .value("Date", points[i].0), y: .value("Weight", points[i].1))
                         PointMark(x: .value("Date", points[i].0), y: .value("Weight", points[i].1))
                     }.foregroundStyle(Palette.ember).chartYScale(domain: .automatic(includesZero: false)).frame(height: 160)
-                    if !recent.isEmpty {
-                        LabeledContent("7-day average", value: "\((recent.reduce(0, +) / Double(recent.count)).formatted(.number.precision(.fractionLength(1)))) lb")
+                    if let average {
+                        LabeledContent("7-day average", value: "\(average.formatted(.number.precision(.fractionLength(1)))) lb")
+                        LabeledContent("To goal", value: "\(max(0, average - target).formatted(.number.precision(.fractionLength(1)))) lb")
+                        if weeklyPace > 0, average > target {
+                            let remaining = (average - target) / weeklyPace * 7
+                            if remaining.isFinite && remaining <= 36_500,
+                               let date = BodyDate.date(BodyDate.add(today, days: Int(remaining.rounded(.up)))) {
+                                LabeledContent("At planned pace", value: date.formatted(date: .abbreviated, time: .omitted))
+                            }
+                        }
+                    }
+                    if let change {
+                        LabeledContent("Weekly pace", value: change >= weeklyPace - 0.25 ? "On pace" : change >= weeklyPace * 0.6 ? "Close" : "Behind")
                     }
                 }
             }
@@ -79,17 +105,40 @@ struct BodyToolView: View {
                     if let value = decimal(number), log.setNumber(value, field: "weights", on: key) { dismiss() }
                 }.disabled(decimal(number).map { $0 <= 0 || $0 > 1500 } ?? true)
             }
+            Section("This week") {
+                LabeledContent("Weigh-ins", value: "\(loggingDays)/6")
+                LabeledContent("Food logged", value: "\(foodDays)/6")
+                LabeledContent("Lifting days", value: "\(log.liftDays(in: days))/\(targetLifts)")
+                LabeledContent(plan["small"] as? String ?? "Coffee treat",
+                               value: loggingDays >= 6 && foodDays >= 6 && log.liftDays(in: days) >= targetLifts ? "Earned" : "In progress")
+                LabeledContent(plan["big"] as? String ?? "$25 to the gear fund",
+                               value: change.map { $0 >= weeklyPace - 0.25 } == true ? "On pace" : "In progress")
+            }
             Section("Target") {
                 TextField("Goal weight (lb)", text: $goal).keyboardType(.decimalPad)
                 TextField("Weekly pace (lb)", text: $pace).keyboardType(.decimalPad)
+                Stepper("Weekly lifting goal · \(workouts)", value: $workouts, in: 1...7)
+                TextField("Maintenance calories", text: $maintenance).keyboardType(.numberPad)
+                TextField("Minimum daily calories", text: $calorieFloor).keyboardType(.numberPad)
+                TextField("Weekly habit reward", text: $smallReward)
+                TextField("Pace reward", text: $bigReward)
+                TextField("Missed-log tasks · one per line", text: $tasks, axis: .vertical)
                 Button("Save weight plan") {
-                    guard let target = decimal(goal), let speed = decimal(pace) else { return }
+                    guard let target = decimal(goal), let speed = decimal(pace),
+                          let maint = Int(maintenance), let floor = Int(calorieFloor),
+                          (1...100_000).contains(maint), (1...maint).contains(floor) else { return }
                     if log.update({ root in
                         var plan = root["plan"] as? [String: Any] ?? [
                             "maint": 3150, "floor": 1800, "workouts": 5, "small": "Coffee treat",
                             "big": "$25 to the gear fund", "wh": ["Take a walk", "Tidy your desk", "Do the dishes"]]
                         plan["goal"] = target
                         plan["pace"] = speed
+                        plan["workouts"] = workouts
+                        plan["maint"] = maint
+                        plan["floor"] = floor
+                        plan["small"] = smallReward
+                        plan["big"] = bigReward
+                        plan["wh"] = tasks.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
                         root["plan"] = plan
                     }) { dismiss() }
                 }.disabled(!(decimal(goal).map { $0 > 0 && $0 <= 1500 } ?? false) || !(decimal(pace).map { $0 >= 0 && $0 <= 10 } ?? false))
@@ -209,6 +258,12 @@ struct BodyToolView: View {
             let plan = log.root["plan"] as? [String: Any]
             goal = (plan?["goal"] as? Double).map { String($0) } ?? "200"
             pace = (plan?["pace"] as? Double).map { String($0) } ?? "1.5"
+            workouts = min(7, max(1, plan?["workouts"] as? Int ?? 4))
+            maintenance = String(plan?["maint"] as? Int ?? 3150)
+            calorieFloor = String(plan?["floor"] as? Int ?? 1800)
+            smallReward = plan?["small"] as? String ?? "Coffee treat"
+            bigReward = plan?["big"] as? String ?? "$25 to the gear fund"
+            tasks = (plan?["wh"] as? [String] ?? ["Take a walk", "Tidy your desk", "Do the dishes"]).joined(separator: "\n")
         case .sleep:
             let old = log.dayMap[key]?["sleep"] as? [String: Int]
             bedtime = Calendar.current.startOfDay(for: day).addingTimeInterval(Double(old?["bed"] ?? 1320) * 60)
