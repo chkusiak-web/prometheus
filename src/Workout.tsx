@@ -55,7 +55,7 @@ export function Preview({ close, first }: { close: () => void; first?: string })
       <h2 className="cond">{name}</h2>
       <div className="exlist">
         {ex.map((x, i) => { const e = EXR(x.name); return (
-          <div key={x.name + i} className="exrow"><span><b>{x.name}</b><span className="small">{x.sets.length} × {x.sets[0].w ? x.sets[0].w + ' lb × ' : ''}{x.sets[0].r}{unitL(e)}</span></span>
+          <div key={x.name + i} className="exrow"><span><b>{x.name}</b><span className="small">{x.sets.length} × {x.sets[0].w ? x.sets[0].w + ' lb × ' : ''}{x.targetRange ? x.targetRange.join('–') : x.sets[0].r}{unitL(e)}{x.perSide ? ' per side' : ''}</span></span>
             <button aria-label={`Remove ${x.name}`} onClick={() => setEx(a => a.filter((_, j) => j !== i))}>✕</button></div>
         ) })}
       </div>
