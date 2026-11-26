@@ -152,4 +152,15 @@ extension NativeTraining {
         "Dumbbell Romanian deadlift": .init(weighted: true),
         "Standing dumbbell press": .init(weighted: true),
     ]
+    static let templates: [(String, [LiftPrescription])] = [
+        ("Push day", [.init("Bench press", 3, 8, 12), .init("Incline DB press", 3, 10, 14), .init("Overhead press", 3, 6, 10), .init("Lateral raise", 3, 15, 19), .init("Rope pushdown", 3, 12, 16)]),
+        ("Pull day", [.init("Pull-up", 3, 8, 12), .init("Barbell row", 3, 8, 12), .init("Lat pulldown", 3, 10, 14), .init("Face pull", 3, 15, 19), .init("Hammer curl", 3, 10, 14)]),
+        ("Leg day", [.init("Back squat", 3, 5, 9), .init("Romanian deadlift", 3, 8, 12), .init("Leg press", 3, 10, 14), .init("Lying leg curl", 3, 12, 16), .init("Standing calf raise", 3, 15, 19)]),
+        ("Upper body", [.init("Bench press", 3, 8, 12), .init("Barbell row", 3, 8, 12), .init("Seated DB press", 3, 10, 14), .init("Lat pulldown", 3, 10, 14), .init("Dumbbell curl", 3, 10, 14), .init("Rope pushdown", 3, 12, 16)]),
+        ("Lower body", [.init("Deadlift", 3, 5, 9), .init("Front squat", 3, 6, 10), .init("Bulgarian split squat", 3, 8, 12), .init("Hip thrust", 3, 10, 14), .init("Seated calf raise", 3, 15, 19)]),
+        ("Full body", [.init("Back squat", 3, 5, 9), .init("Bench press", 3, 8, 12), .init("Barbell row", 3, 8, 12), .init("Overhead press", 3, 6, 10), .init("Plank", 3, 45, 49)]),
+        ("Arms", [.init("Barbell curl", 3, 10, 14), .init("Close-grip bench", 3, 8, 12), .init("Hammer curl", 3, 10, 14), .init("Skull crusher", 3, 10, 14), .init("Wrist curl", 3, 15, 19)]),
+        ("Core", [.init("Hanging leg raise", 3, 10, 14), .init("Ab wheel", 3, 10, 14), .init("Pallof press", 3, 12, 16), .init("Side plank", 3, 30, 34), .init("Dead bug", 3, 12, 16)]),
+        ("Bodyweight", [.init("Push-up", 3, 15, 19), .init("Pull-up", 3, 8, 12), .init("Air squat", 3, 20, 24), .init("Inverted row", 3, 12, 16), .init("Glute bridge", 3, 15, 19), .init("Plank", 3, 45, 49)]),
+    ]
 }

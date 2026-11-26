@@ -27,6 +27,7 @@ final class NativeLog {
             guard let storage else { throw CocoaError(.fileWriteUnknown) }
             var next = root
             try change(&next)
+            if next["since"] == nil { next["since"] = BodyDate.today }
             let data = try JSONSerialization.data(withJSONObject: next, options: [.sortedKeys])
             try storage.save(BackupSnapshot(data: data))
             root = next
@@ -39,6 +40,14 @@ final class NativeLog {
 
     var food: [String: [[String: Any]]] { root["food"] as? [String: [[String: Any]]] ?? [:] }
     var workouts: [[String: Any]] { root["workouts"] as? [[String: Any]] ?? [] }
+    var foodTarget: Int {
+        let plan = root["plan"] as? [String: Any] ?? [:]
+        let maint = plan["maint"] as? Double ?? 3150
+        let pace = plan["pace"] as? Double ?? 1.5
+        let floor = plan["floor"] as? Double ?? 1800
+        let value = max(floor, (maint - pace * 500).rounded())
+        return value.isFinite && (1...100_000).contains(value) ? Int(value) : 2400
+    }
     var caloriesToday: Int {
         (food[BodyDate.today] ?? []).reduce(0) { $0 + ($1["kcal"] as? Int ?? 0) }
     }

@@ -20,3 +20,16 @@ In the web app, use **Hero → Settings → Save backup**. In the native app, us
   calendar button opens the year and lets you swap dates for eligible sessions.
 - **Hero** imports and exports backups. Logs stay in the app's local storage.
   A backup exported after native edits includes those edits.
+
+## Daily flows review
+
+- Today includes agenda creation, editing, completion, cross-date moves,
+  duplication, the weekly Hero strip, missed-log prompts, and close-day
+  rating, Soul traits, and moving unfinished blocks to tomorrow.
+- Body provides weigh-ins and a trend chart, sleep, lifting history, water,
+  steps, and the Sunday review. The workout screen retains the year calendar.
+- Mind includes the wheel, weekly activity goals and emotion check-in. Soul
+  includes the trait sky and quest pools. Hero includes weekly scores, the
+  flame, the weekly quest and reward, goals, and backup.
+- The existing GitHub Pages app and backup version remain available. Native
+  UI uses iOS sheets and keyboards, with layouts adapted from the web design.

@@ -116,7 +116,7 @@ struct NativeFoodView: View {
                         .labelStyle(.iconOnly).accessibilityLabel("Scan barcode")
                 }
                 Button("Quick add calories") { quickAdd = true }
-            } header: { Text("\(log.caloriesToday) kcal logged today") }
+            } header: { Text("\(log.caloriesToday) / \(log.foodTarget) kcal today") }
             if let message { Text(message).font(.footnote) }
             if loading { ProgressView("Searching foods") }
             if !recent.isEmpty {
@@ -146,6 +146,16 @@ struct NativeFoodView: View {
                 Section("Logged today") {
                     ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
                         LabeledContent(entry["name"] as? String ?? "Food", value: "\(entry["kcal"] as? Int ?? 0) kcal")
+                            .swipeActions {
+                                Button("Remove", role: .destructive) {
+                                    guard let id = entry["id"] as? String else { return }
+                                    log.update { root in
+                                        var meals = log.food
+                                        meals[BodyDate.today]?.removeAll { $0["id"] as? String == id }
+                                        root["food"] = meals
+                                    }
+                                }
+                            }
                     }
                 }
             }

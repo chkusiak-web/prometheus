@@ -42,8 +42,10 @@ enum Palette {
 private struct PrometheusRootView: View {
     @State private var log = NativeLog()
     @State private var selection: PrometheusTab = .today
-    @State private var showPlan = false
     @State private var showAdd = false
+    @State private var bodyTool: BodyTool?
+    @State private var editingBlock: AgendaBlock?
+    @State private var closeDay = false
     @State private var blockName = ""
     @State private var blockPillar = "body"
     @State private var blockTime = Date()
@@ -55,12 +57,9 @@ private struct PrometheusRootView: View {
                     switch selection {
                     case .today: todayScreen
                     case .body: bodyScreen
-                    default:
-                        Text(selection.rawValue.uppercased())
-                            .font(.prometheusTitle)
-                            .accessibilityAddTraits(.isHeader)
-                        if selection == .hero { BackupView() }
-                        else { Text(selection.description).foregroundStyle(Palette.muted).prometheusCard() }
+                    case .mind: NativeMindView(log: log)
+                    case .soul: NativeSoulView(log: log)
+                    case .hero: NativeHeroView(log: log)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -74,8 +73,10 @@ private struct PrometheusRootView: View {
             .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
             .toolbar(.hidden, for: .navigationBar)
             .onChange(of: selection) { _, _ in log.reload() }
-            .sheet(isPresented: $showPlan) { TrainingSchedule(log: log, today: BodyDate.today) }
             .sheet(isPresented: $showAdd) { addBlockSheet }
+            .sheet(item: $bodyTool) { BodyToolView(log: log, tool: $0) }
+            .sheet(item: $editingBlock) { AgendaEdit(log: log, block: $0, source: BodyDate.today) }
+            .sheet(isPresented: $closeDay) { CloseDayView(log: log) }
             .alert("Could not save or load data", isPresented: Binding(get: { log.error != nil }, set: { if !$0 { log.error = nil } })) {
                 Button("OK") { log.error = nil }
             } message: { Text(log.error ?? "") }
@@ -85,22 +86,32 @@ private struct PrometheusRootView: View {
 
     @State private var back = false
 
-    private var days: [String: [String: Any]] { log.root["days"] as? [String: [String: Any]] ?? [:] }
+    private var days: [String: [String: Any]] { log.dayMap }
     private var blocks: [[String: Any]] { days[BodyDate.today]?["blocks"] as? [[String: Any]] ?? [] }
 
     private var todayScreen: some View {
         let next = blocks.first { $0["done"] as? Bool != true }
         return Group {
             VStack(alignment: .leading, spacing: 10) {
-                Text(Date.now, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                    .font(.prometheusTitle).textCase(.uppercase)
-                    .accessibilityAddTraits(.isHeader)
+                HStack {
+                    Text(BodyDate.date(BodyDate.today) ?? Date(), format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                        .font(.prometheusTitle).textCase(.uppercase).accessibilityAddTraits(.isHeader)
+                    Spacer()
+                    Button(days[BodyDate.today]?["closedAt"] == nil ? "Close day" : "Closed") { closeDay = true }
+                        .buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+                }
                 weekStrip
+                heroStrip
             }
             .prometheusCard(fill: Palette.ink)
             .foregroundStyle(.white)
 
             quickActions
+            missedLogCard
+            if BodyDate.today == BodyDate.reviewSunday(BodyDate.today),
+               (log.root["bodyReviews"] as? [String: Any])?[BodyDate.today] == nil {
+                Button("Sunday review due") { bodyTool = .review }.buttonStyle(PrometheusPill())
+            }
 
             VStack(alignment: .leading, spacing: 8) {
                 Text("Up next").font(.prometheusLabel)
@@ -125,9 +136,19 @@ private struct PrometheusRootView: View {
                     HStack {
                         Text(blockTimeLabel(block["start"] as? Int ?? 0)).font(.caption.monospacedDigit())
                             .foregroundStyle(Palette.muted).frame(minWidth: 52, alignment: .leading)
-                        Text(block["name"] as? String ?? "Block").font(.subheadline.weight(.semibold))
+                        Button(block["name"] as? String ?? "Block") { editingBlock = AgendaBlock(block) }
+                            .buttonStyle(.plain).font(.subheadline.weight(.semibold))
                         Spacer()
-                        if block["done"] as? Bool == true { Image(systemName: "checkmark") }
+                        let done = block["done"] as? Bool == true
+                        Button(done ? "Mark incomplete" : "Mark complete", systemImage: done ? "checkmark.circle.fill" : "circle") {
+                            log.updateBlocks(BodyDate.today) { entries in
+                                guard let id = block["id"] as? String,
+                                      let i = entries.firstIndex(where: { $0["id"] as? String == id }) else { return }
+                                entries[i]["done"] = !done
+                                entries[i]["doneAt"] = done ? nil : NativeTraining.now
+                            }
+                        }.labelStyle(.iconOnly).buttonStyle(.plain)
+                            .frame(minWidth: 44, minHeight: 44)
                     }
                     .padding(10)
                     .background(Palette.bone, in: RoundedRectangle(cornerRadius: 12))
@@ -136,12 +157,81 @@ private struct PrometheusRootView: View {
         }
     }
 
+    @ViewBuilder
+    private var heroStrip: some View {
+        let date = BodyDate.today
+        let week = BodyDate.week(date)
+        if var quests = log.root["hero"] as? [String: [String: Any]],
+           var quest = quests[week[0]], let name = quest["name"] as? String, !name.isEmpty,
+           let i = week.firstIndex(of: date) {
+            let saved = quest["done"] as? [Bool] ?? []
+            let done = saved.indices.contains(i) && saved[i]
+            Button {
+                var next = Array(saved.prefix(7))
+                while next.count < 7 { next.append(false) }
+                next[i] = !done
+                quest["done"] = next
+                quests[week[0]] = quest
+                log.update { $0["hero"] = quests }
+            } label: {
+                HStack {
+                    Image(systemName: done ? "checkmark.circle.fill" : "circle")
+                    Text(name).font(.subheadline.bold())
+                    Spacer()
+                    Text("\(saved.prefix(7).filter { $0 }.count)/7").font(.caption)
+                }.padding(8).background(Palette.charcoal, in: RoundedRectangle(cornerRadius: 10))
+            }.buttonStyle(.plain).accessibilityAddTraits(done ? .isSelected : [])
+        }
+    }
+
+    @ViewBuilder
+    private var missedLogCard: some View {
+        let yesterday = BodyDate.add(BodyDate.today, days: -1)
+        let saved = (log.root["withholds"] as? [String: [String: Any]])?[yesterday]
+        if let since = log.root["since"] as? String, since <= yesterday,
+           saved?["done"] as? Bool != true {
+            let missing = [
+                (log.root["weights"] as? [String: Double])?[yesterday] == nil ? "weigh-in" : nil,
+                (log.food[yesterday] ?? []).contains { ($0["kcal"] as? Double ?? 0) > 0 } ? nil : "calories",
+            ].compactMap { $0 }
+            if !missing.isEmpty || saved != nil {
+                let plan = log.root["plan"] as? [String: Any]
+                let tasks = (plan?["wh"] as? [String] ?? ["Take a 20-minute walk", "Tidy your desk", "Do the dishes"]).filter { !$0.isEmpty }
+                let task = saved?["task"] as? String ?? tasks.first ?? "Tidy your desk"
+                let recorded = saved?["missed"] as? [String] ?? missing
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Missed yesterday’s " + recorded.joined(separator: " and ")).font(.prometheusLabel)
+                    Text("Do it now: " + task).font(.headline)
+                    HStack(spacing: 8) {
+                        Button("Done") { saveMissed(yesterday, recorded: recorded, task: task, done: true) }
+                            .buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+                        if let next = tasks.first(where: { $0 != task }) {
+                            Button("Swap") { saveMissed(yesterday, recorded: recorded, task: next, done: false) }
+                                .buttonStyle(PrometheusPill())
+                        }
+                    }
+                }.prometheusCard(fill: Palette.ember).foregroundStyle(Palette.ink)
+            }
+        }
+    }
+
+    private func saveMissed(_ date: String, recorded: [String], task: String, done: Bool) {
+        log.update { root in
+            var missed = root["withholds"] as? [String: [String: Any]] ?? [:]
+            missed[date] = ["missed": recorded, "task": task, "done": done]
+            root["withholds"] = missed
+        }
+    }
+
     private var weekStrip: some View {
-        let weekday = Calendar.current.component(.weekday, from: Date())
-        let offset = (weekday + 5) % 7
+        let dates = BodyDate.week(BodyDate.today)
+        let offset = dates.firstIndex(of: BodyDate.today) ?? 0
         return HStack(spacing: 5) {
             ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, label in
-                Text(label).font(.caption.weight(.bold))
+                let done = log.blocks(dates[index]).filter { $0["done"] as? Bool == true }
+                let pillars = Set(done.compactMap { $0["pillar"] as? String })
+                let won = done.count >= 3 && pillars.isSuperset(of: ["mind", "body", "soul"])
+                Text(won ? "✓" : label).font(.caption.weight(.bold))
                     .frame(maxWidth: .infinity).padding(.vertical, 8)
                     .foregroundStyle(index == offset ? Palette.ink : Palette.stone)
                     .background(index == offset ? Palette.paper : Palette.charcoal, in: RoundedRectangle(cornerRadius: 8))
@@ -175,43 +265,51 @@ private struct PrometheusRootView: View {
         let weights = log.root["weights"] as? [String: Double] ?? [:]
         let weight = weights.keys.sorted().last.flatMap { weights[$0] }
         let sleep = days[BodyDate.today]?["sleep"] as? [String: Int]
-        let weekly = Set(log.workouts.compactMap { entry -> String? in
-            guard let run = log.decode(entry, as: NativeRun.self), run.endedAt != nil,
-                  run.day >= BodyDate.add(BodyDate.today, days: -6), run.day <= BodyDate.today,
-                  run.ex.contains(where: { $0.sets.contains { $0.done && $0.r > 0 } }) else { return nil }
-            return run.day
-        })
+        let weekly = log.liftDays(in: BodyDate.week(BodyDate.today))
         let plan = log.root["plan"] as? [String: Any]
         let liftingTarget = plan?["workouts"] as? Int ?? (log.root["bodyWeek"] == nil ? 4 : 5)
         return Group {
             Text("BODY").font(.prometheusTitle).accessibilityAddTraits(.isHeader)
             HStack(spacing: 10) {
-                stat("Weight", weight.map { $0.formatted() + " lb" } ?? "–")
+                Button { bodyTool = .weight } label: { stat("Weight", weight.map { $0.formatted() + " lb" } ?? "–") }.buttonStyle(.plain)
                 Divider()
-                stat("Sleep", sleepLabel(sleep))
+                Button { bodyTool = .sleep } label: { stat("Sleep", sleepLabel(sleep)) }.buttonStyle(.plain)
                 Divider()
-                stat("Lifting days", "\(weekly.count)/\(liftingTarget)")
+                Button { bodyTool = .history } label: { stat("Lifting days", "\(weekly)/\(liftingTarget)") }.buttonStyle(.plain)
             }.prometheusCard()
             quickActions
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Body plan").font(.prometheusLabel)
-                    Text("365 days").font(.headline)
-                }
-                Spacer()
-                Button("Show plan") { showPlan = true }.buttonStyle(PrometheusPill())
-            }.prometheusCard()
-            VStack(alignment: .leading, spacing: 10) {
-                Picker("Muscle map", selection: $back) {
-                    Text("Front").tag(false)
-                    Text("Back").tag(true)
-                }.pickerStyle(.segmented)
+            ZStack(alignment: .topLeading) {
                 Image(back ? "MuscleBack" : "MuscleFront")
-                    .resizable().scaledToFit().frame(height: 300)
+                    .resizable().scaledToFit().frame(height: 380)
                     .frame(maxWidth: .infinity)
                     .accessibilityLabel(back ? "Back muscle illustration" : "Front muscle illustration")
-            }.prometheusCard()
-            Text("\(log.caloriesToday) kcal logged today").font(.subheadline).foregroundStyle(Palette.muted)
+                HStack(spacing: 0) {
+                    ForEach([false, true], id: \.self) { side in
+                        Button(side ? "Back" : "Front") { back = side }
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(back == side ? .white : Palette.muted)
+                            .padding(.horizontal, 9).padding(.vertical, 6)
+                            .background(back == side ? Palette.ink : .clear, in: Capsule())
+                            .frame(minHeight: 44)
+                            .accessibilityAddTraits(back == side ? .isSelected : [])
+                    }
+                }.buttonStyle(.plain)
+            }
+            HStack(spacing: 8) {
+                Button("Steps") { bodyTool = .steps }.buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+                Button("Sunday review") { bodyTool = .review }.buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+                Spacer()
+                Button("Water", systemImage: "drop") {
+                    log.updateDay(BodyDate.today) { day in
+                        let count = day["water"] as? Int ?? 0
+                        day["water"] = count >= 8 ? 0 : count + 1
+                    }
+                }.buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+                 .accessibilityLabel("Water, \(days[BodyDate.today]?["water"] as? Int ?? 0) of 8 glasses. Add a glass.")
+            }
+            if let water = days[BodyDate.today]?["water"] as? Int {
+                Text("\(water)/8 glasses").font(.caption).foregroundStyle(Palette.muted)
+            }
         }
     }
 

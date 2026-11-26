@@ -8,6 +8,10 @@ struct NativeWorkoutView: View {
     @State private var swapSearch = ""
     @State private var discard = false
     @State private var showingSchedule = false
+    @State private var template: Int?
+    @State private var removed: Set<Int> = []
+    @State private var added: [LiftPrescription] = []
+    @State private var adding = false
 
     private let today = BodyDate.today
     private var dates: [String] { NativeTraining.dates(in: log.root, today: today) }
@@ -40,15 +44,18 @@ struct NativeWorkoutView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 12) {
-                        if completed {
+                        templatePicker
+                        if let template {
+                            let item = NativeTraining.templates[template]
+                            workoutPreview(item.0, lifts: item.1, index: nil)
+                        } else if !completed, let index, let session = NativeTraining.session(index),
+                                  case .lift(let name, let lifts) = session {
+                            workoutPreview(name, lifts: lifts, index: index)
+                        } else if completed {
                             ContentUnavailableView("Lift saved", systemImage: "checkmark.circle")
-                        } else if let index, let session = NativeTraining.session(index) {
-                            switch session {
-                            case .lift(let name, let lifts):
-                                workoutPreview(name, lifts: lifts, index: index)
-                            case .recovery(let name, let text):
-                                ContentUnavailableView(name, systemImage: "figure.walk", description: Text(text))
-                            }
+                        } else if let index, let session = NativeTraining.session(index),
+                                  case .recovery(let name, let text) = session {
+                            ContentUnavailableView(name, systemImage: "figure.walk", description: Text(text))
                         } else {
                             ContentUnavailableView("No scheduled workout", systemImage: "calendar")
                         }
@@ -70,43 +77,78 @@ struct NativeWorkoutView: View {
                 if log.update({ $0["run"] = NSNull() }) { run = nil }
             }
         }
-        .sheet(isPresented: Binding(get: { swapIndex != nil }, set: { if !$0 { swapIndex = nil } })) {
+        .sheet(isPresented: Binding(get: { swapIndex != nil || adding }, set: { if !$0 { swapIndex = nil; adding = false } })) {
             NavigationStack {
                 List(NativeTraining.library.keys.sorted().filter { swapSearch.isEmpty || $0.localizedCaseInsensitiveContains(swapSearch) }, id: \.self) { name in
-                    Button(name) { swap(name) }
+                    Button(name) {
+                        if adding {
+                            let kind = NativeTraining.library[name] ?? ExerciseKind(weighted: true)
+                            added.append(.init(name, 3, kind.timed ? 20 : 8, kind.timed ? 30 : 12, timed: kind.timed))
+                            adding = false
+                        } else { swap(name) }
+                    }
                 }
                 .searchable(text: $swapSearch)
-                .navigationTitle("Swap exercise")
-                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { swapIndex = nil } } }
+                .navigationTitle(adding ? "Add exercise" : "Swap exercise")
+                .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { swapIndex = nil; adding = false } } }
             }
         }
     }
 
-    private func workoutPreview(_ name: String, lifts: [LiftPrescription], index: Int) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Suggested workout").font(.prometheusLabel).foregroundStyle(Palette.muted)
-            Text(name)
-                .font(.subheadline.bold())
-                .foregroundStyle(.white)
-                .padding(.horizontal, 16)
-                .frame(minHeight: 44)
-                .background(Palette.ember, in: Capsule())
-                .accessibilityAddTraits(.isSelected)
+    private var templatePicker: some View {
+        let suggested = index.flatMap(NativeTraining.session)
+        return ScrollView(.horizontal) {
+            HStack(spacing: 8) {
+                if !completed, let suggested, case .lift(let name, _) = suggested {
+                    Button(name) { pick(nil) }
+                        .buttonStyle(PrometheusPill(fill: template == nil ? Palette.ember : Palette.paper,
+                                                    ink: template == nil ? .white : Palette.ink))
+                        .accessibilityAddTraits(template == nil ? .isSelected : [])
+                }
+                ForEach(NativeTraining.templates.indices, id: \.self) { option in
+                    Button(NativeTraining.templates[option].0) { pick(option) }
+                        .buttonStyle(PrometheusPill(fill: template == option ? Palette.ember : Palette.paper,
+                                                    ink: template == option ? .white : Palette.ink))
+                        .accessibilityAddTraits(template == option ? .isSelected : [])
+                }
+            }
+        }.scrollIndicators(.hidden)
+    }
+
+    private func pick(_ option: Int?) {
+        template = option
+        removed = []
+        added = []
+    }
+
+    private func workoutPreview(_ name: String, lifts: [LiftPrescription], index: Int?) -> some View {
+        let combined = lifts + added
+        let visible = combined.indices.filter { !removed.contains($0) }
+        return VStack(alignment: .leading, spacing: 12) {
+            Text(index == nil ? "Workout" : "Suggested workout").font(.prometheusLabel).foregroundStyle(Palette.muted)
             Text(name.uppercased()).font(.prometheusTitle).accessibilityAddTraits(.isHeader)
-            ForEach(lifts.indices, id: \.self) { i in
-                let lift = lifts[i]
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(lift.name).font(.headline)
-                    Text("\(lift.count) × \(lift.minimum)–\(lift.maximum) \(lift.timed ? "sec" : "reps")\(lift.perSide ? " per side" : "")")
-                        .font(.subheadline).foregroundStyle(Palette.muted)
+            ForEach(visible, id: \.self) { i in
+                let lift = combined[i]
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(lift.name).font(.headline)
+                        Text("\(lift.count) × \(lift.minimum)–\(lift.maximum) \(lift.timed ? "sec" : "reps")\(lift.perSide ? " per side" : "")")
+                            .font(.subheadline).foregroundStyle(Palette.muted)
+                    }
+                    Spacer()
+                    Button("Remove \(lift.name)", systemImage: "xmark") { removed.insert(i) }
+                        .labelStyle(.iconOnly).buttonStyle(.plain).frame(minWidth: 44, minHeight: 44)
                 }.prometheusCard(fill: Palette.stone)
             }
+            Button("Add exercise", systemImage: "plus") { swapSearch = ""; adding = true }
+                .buttonStyle(PrometheusPill(fill: Palette.bone, ink: Palette.ink))
             Button {
-                start(name, lifts: lifts, index: index)
+                start(name, lifts: visible.map { combined[$0] }, index: index)
             } label: {
                 Text("Start workout").frame(maxWidth: .infinity)
             }
             .buttonStyle(PrometheusPill())
+            .disabled(visible.isEmpty)
         }
         .prometheusCard()
     }
@@ -160,8 +202,8 @@ struct NativeWorkoutView: View {
         }
     }
 
-    private func start(_ name: String, lifts: [LiftPrescription], index: Int) {
-        guard run == nil, !completed else { return }
+    private func start(_ name: String, lifts: [LiftPrescription], index: Int?) {
+        guard run == nil, !lifts.isEmpty, index == nil || !completed else { return }
         let workout = NativeRun(id: UUID().uuidString, name: name, day: today, startedAt: NativeTraining.now,
             ex: lifts.map { NativeTraining.exercise($0, prior: prior) }, cur: 0, bodySession: index)
         persist(workout)
@@ -170,7 +212,7 @@ struct NativeWorkoutView: View {
     private func persist(_ workout: NativeRun) {
         if log.update({ root in
             root["run"] = try NativeTraining.encode(workout)
-            if root["bodyWeek"] == nil { root["bodyWeek"] = dates }
+            if workout.bodySession != nil && root["bodyWeek"] == nil { root["bodyWeek"] = dates }
         }) { run = workout }
     }
 
@@ -229,7 +271,7 @@ struct NativeWorkoutView: View {
             day["blocks"] = blocks.sorted { ($0["start"] as? Int ?? 0) < ($1["start"] as? Int ?? 0) }
             days[finished.day] = day
             root["days"] = days
-        }) { run = nil }
+        }) { run = nil; pick(nil) }
     }
 }
 
