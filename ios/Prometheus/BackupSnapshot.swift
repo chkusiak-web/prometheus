@@ -20,6 +20,13 @@ struct BackupSnapshot {
         let weights = try Self.read("weights", from: root, fallback: [String: Double]())
         let reviews = try Self.read("bodyReviews", from: root, fallback: [String: [String: Any]]())
         let assignments = try Self.read("bodyWeek", from: root, fallback: [String]())
+        let dateFormatter = ISO8601DateFormatter()
+        guard assignments.count <= 365, Set(assignments).count == assignments.count,
+              assignments.allSatisfy({ day in
+                  day.count == 10 && day.range(of: #"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"#, options: .regularExpression) != nil
+                  && dateFormatter.date(from: day + "T12:00:00Z") != nil
+              })
+        else { throw BackupError.invalid }
         let moods = try Self.read("checkins", from: root, fallback: [[String: Any]]())
         let hero = try Self.read("hero", from: root, fallback: [String: [String: Any]]())
         self.data = data
