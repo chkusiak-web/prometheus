@@ -76,11 +76,7 @@ struct NativeMindView: View {
         let currentWeek = BodyDate.week(BodyDate.today)
         let blocks = currentWeek.flatMap { log.blocks($0) }
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text("MIND").font(.prometheusTitle)
-                Spacer()
-                Button("Check in") { initialCorner = nil; checkIn = true }.buttonStyle(PrometheusPill(fill: Palette.ink))
-            }
+            Text("MIND").font(.prometheusTitle).accessibilityAddTraits(.isHeader)
             let areas = (HabitCatalog.current?.cats ?? []).flatMap { category in
                 category.areas.map { area in
                     let count = blocks.filter { $0["area"] as? String == area.n && $0["done"] as? Bool == true }.count
@@ -88,16 +84,10 @@ struct NativeMindView: View {
                 }
             }
             MindWheel(areas: areas) { area = $0 }
-                .prometheusCard()
-            DisclosureGroup("Weekly activity goals") {
-                ForEach(areas, id: \.name) { item in
-                    Button { area = item.name } label: {
-                        LabeledContent(item.name, value: "\(item.count)/\(item.goal)")
-                    }.buttonStyle(.plain)
-                }
-            }.prometheusCard()
+                .frame(maxWidth: 306)
+                .frame(maxWidth: .infinity)
             EmotionRing(log: log) { initialCorner = $0; checkIn = true }
-                .prometheusCard()
+
         }
         .sheet(isPresented: Binding(get: { area != nil }, set: { if !$0 { area = nil } })) {
             if let area {
@@ -172,18 +162,31 @@ private struct EmotionRing: View {
         }
         return VStack(spacing: 12) {
             ZStack {
-                Circle().strokeBorder(AngularGradient(colors: [Palette.ember, Color(hex: "#FFB000"),
-                    Color(hex: "#13A06F"), Color(hex: "#2F5BEA"), Palette.ember], center: .center), lineWidth: 9)
-                    .frame(width: 172, height: 172)
+                let green = Color(hex: "#13A06F"), blue = Color(hex: "#2F5BEA"), yellow = Color(hex: "#FFB000")
+                Circle().strokeBorder(AngularGradient(
+                    stops: [.init(color: Color(hex: "#8DBB2E"), location: 0), .init(color: green, location: 0.125),
+                            .init(color: blue, location: 0.375), .init(color: Palette.ember, location: 0.625),
+                            .init(color: yellow, location: 0.875), .init(color: Color(hex: "#8DBB2E"), location: 1)],
+                    center: .center), lineWidth: 7)
+                    .frame(width: 160, height: 160)
                 Button("Check in", systemImage: "plus") { choose(nil) }
                     .buttonStyle(PrometheusPill(fill: entries.isEmpty ? Palette.stone : Color(hex: dominant?.color ?? "#D9D4CC").opacity(0.35), ink: Palette.ink))
                 ForEach(Array(corners.enumerated()), id: \.offset) { i, corner in
                     let count = today.filter { $0["corner"] as? String == corner.n }.count
-                    Button(count == 0 ? corner.n : "\(corner.n) \(count)") { choose(corner) }
+                    let left = i % 2 == 0
+                    let top = i < 2
+                    Button { choose(corner) } label: {
+                        Circle().fill(Color(hex: corner.color)).frame(width: 12, height: 12)
+                            .overlay(Circle().strokeBorder(Palette.bone, lineWidth: 2))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
+                    }.buttonStyle(.plain)
+                        .accessibilityLabel(count == 0 ? corner.n : "\(corner.n), \(count) check-ins today")
+                        .offset(x: left ? -54 : 54, y: top ? -54 : 54)
+                    Text(count == 0 ? corner.n : "\(corner.n) \(count)")
                         .font(.caption.bold()).foregroundStyle(Palette.ink)
-                        .frame(minWidth: 56, minHeight: 44)
-                        .background(Color(hex: corner.color).opacity(0.38), in: Capsule())
-                        .offset(x: i % 2 == 0 ? -63 : 63, y: i < 2 ? -63 : 63)
+                        .offset(x: left ? -104 : 104, y: top ? -54 : 54)
+                        .allowsHitTesting(false).accessibilityHidden(true)
                 }
             }.frame(height: 184)
             if let word = entries.last?["word"] as? String {
@@ -205,7 +208,8 @@ struct NativeSoulView: View {
         let recent = (0..<7).flatMap { log.blocks(BodyDate.add(date, days: -$0)) }
         let planned = log.blocks(date).filter { $0["pillar"] as? String == "soul" }
         VStack(alignment: .leading, spacing: 12) {
-            Text("SOUL").font(.prometheusTitle)
+            Text("SOUL").font(.prometheusTitle).accessibilityAddTraits(.isHeader)
+            let counts = traits.map { name in recent.filter { $0["trait"] as? String == name && $0["done"] as? Bool == true }.count }
             if !planned.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Today's quests").font(.prometheusLabel)
@@ -225,14 +229,37 @@ struct NativeSoulView: View {
                     }
                 }.prometheusCard()
             }
-            SoulSky(names: traits, selected: Set(log.dayMap[date]?["triangle"] as? [String] ?? []),
-                    counts: traits.map { name in recent.filter { $0["trait"] as? String == name && $0["done"] as? Bool == true }.count }) {
-                trait = $0
+            if planned.isEmpty, let weakest = traits.indices.min(by: { counts[$0] < counts[$1] }),
+               let suggestion = HabitCatalog.current?.quests[traits[weakest]]?.first?.last {
+                Button { trait = traits[weakest] } label: {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Today’s quest · \(traits[weakest])").font(.prometheusLabel).foregroundStyle(Palette.muted)
+                        Text(suggestion).font(.headline).foregroundStyle(Palette.ink)
+                    }.prometheusCard()
+                }.buttonStyle(.plain)
+            }
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        let doneDays = (0..<7).filter { offset in
+                            log.blocks(BodyDate.add(date, days: -offset)).contains {
+                                $0["pillar"] as? String == "soul" && $0["done"] as? Bool == true
+                            }
+                        }.count
+                        Text((Double(doneDays) / 7).formatted(.percent.precision(.fractionLength(0))))
+                            .font(.prometheusTitle).foregroundStyle(.white)
+                        Text("Soul").font(.prometheusLabel).foregroundStyle(Palette.stone)
+                    }
+                    Spacer()
+                    Button("Triangle", systemImage: "triangle") { triangle = true }
+                        .buttonStyle(PrometheusPill(fill: Palette.charcoal))
+                }
+                SoulSky(names: traits, selected: Set(log.dayMap[date]?["triangle"] as? [String] ?? []), counts: counts) {
+                    trait = $0
+                }
+                .frame(maxWidth: 306).frame(maxWidth: .infinity)
             }.prometheusCard(fill: Palette.ink)
-            DisclosureGroup("Traits") {
-                ForEach(traits, id: \.self) { name in Button(name) { trait = name } }
-            }.prometheusCard()
-            Button("Soul triangle") { triangle = true }.buttonStyle(PrometheusPill())
+
         }
         .sheet(isPresented: Binding(get: { trait != nil }, set: { if !$0 { trait = nil } })) {
             if let trait {
@@ -336,14 +363,21 @@ private struct Wedge: Shape {
 
     func path(in rect: CGRect) -> Path {
         let middle = CGPoint(x: rect.midX, y: rect.midY)
-        let full = min(rect.width, rect.height) * 0.48
-        let inner = full * 0.21
-        let outer = inner + (full - inner) * fraction
-        let low = Angle.degrees(Double(index * 30) - 88)
-        let high = Angle.degrees(Double((index + 1) * 30) - 92)
+        let scale = min(rect.width, rect.height) / 292
+        let inner = 36 * scale
+        let outer = (36 + 94 * fraction) * scale
+        let first = Double(index * 30 - 90) * .pi / 180
+        let last = first + .pi / 6
+        let gap = 7.6 * scale
+        func point(_ radius: Double, _ angle: Double) -> CGPoint {
+            CGPoint(x: middle.x + radius * cos(angle), y: middle.y + radius * sin(angle))
+        }
+        let i = gap / inner, o = gap / outer
         return Path { path in
-            path.addArc(center: middle, radius: outer, startAngle: low, endAngle: high, clockwise: false)
-            path.addArc(center: middle, radius: inner, startAngle: high, endAngle: low, clockwise: true)
+            path.move(to: point(inner, first + i))
+            path.addLine(to: point(outer, first + o))
+            path.addArc(center: middle, radius: outer, startAngle: .radians(first + o), endAngle: .radians(last - o), clockwise: false)
+            path.addLine(to: point(inner, last - i))
             path.closeSubpath()
         }
     }
@@ -359,10 +393,12 @@ private struct MindWheel: View {
                 let shape = Wedge(index: index, fraction: 1)
                 Button { choose(item.name) } label: {
                     ZStack {
-                        shape.fill(item.color.opacity(0.18))
+                        let muted = item.color.opacity(0.20)
+                        shape.fill(muted).overlay(shape.stroke(muted, style: StrokeStyle(lineWidth: 9, lineJoin: .round)))
                         if item.count > 0 {
-                            Wedge(index: index, fraction: sqrt(min(1, Double(item.count) / Double(item.goal))))
-                                .fill(item.color)
+                            let progress = Wedge(index: index, fraction: sqrt(min(1, Double(item.count) / Double(item.goal))))
+                            progress.fill(item.color)
+                                .overlay(progress.stroke(item.color, style: StrokeStyle(lineWidth: 9, lineJoin: .round)))
                         }
                     }.contentShape(shape)
                 }
@@ -389,12 +425,33 @@ private struct SoulSky: View {
                 return CGPoint(x: center.x + cos(angle) * dimension * 0.34,
                                y: center.y + sin(angle) * dimension * 0.34)
             }
-            let polygon = names.indices.filter { selected.contains(names[$0]) }.map { points[$0] }
-            if polygon.count > 1 {
-                Path { path in path.addLines(polygon); path.closeSubpath() }
-                    .fill(gold.opacity(0.18)).allowsHitTesting(false)
-                Path { path in path.addLines(polygon); path.closeSubpath() }
-                    .stroke(gold, lineWidth: 2).allowsHitTesting(false)
+            let archetypes = ["King", "Warrior", "Magician", "Lover"]
+            ForEach(archetypes.indices, id: \.self) { i in
+                let mid = Double(i * 90 - 45) * .pi / 180
+                Path { path in
+                    path.addArc(center: center, radius: dimension * 0.46, startAngle: .degrees(Double(i * 90 - 82)),
+                                endAngle: .degrees(Double(i * 90 - 8)), clockwise: false)
+                }.stroke(Palette.charcoal, lineWidth: 1)
+                Text(archetypes[i].uppercased()).font(.system(size: 8, weight: .bold))
+                    .tracking(0.5).foregroundStyle(gold)
+                    .position(x: center.x + cos(mid) * dimension * 0.47,
+                              y: center.y + sin(mid) * dimension * 0.47)
+            }
+            let progress = points.enumerated().map { i, p in
+                let scale = 0.15 + 0.85 * min(1, Double(counts[i]) / 3)
+                return CGPoint(x: center.x + (p.x - center.x) * scale, y: center.y + (p.y - center.y) * scale)
+            }
+            Path { path in path.addLines(progress); path.closeSubpath() }
+                .fill(gold.opacity(0.10)).allowsHitTesting(false)
+            Path { path in path.addLines(progress); path.closeSubpath() }
+                .stroke(gold.opacity(0.3), lineWidth: 4).blur(radius: 3).allowsHitTesting(false)
+            Path { path in path.addLines(progress); path.closeSubpath() }
+                .stroke(gold, lineWidth: 1.4).allowsHitTesting(false)
+            let triangle = names.indices.filter { selected.contains(names[$0]) }.map { points[$0] }
+            if triangle.count > 1 {
+                Path { path in path.addLines(triangle); path.closeSubpath() }
+                    .stroke(gold.opacity(0.55), style: StrokeStyle(lineWidth: 1.4, dash: [3, 3]))
+                    .allowsHitTesting(false)
             }
             ForEach(names.indices, id: \.self) { index in
                 let name = names[index]
@@ -402,7 +459,7 @@ private struct SoulSky: View {
                     VStack(spacing: 3) {
                         Circle().fill(counts[index] > 0 || selected.contains(name) ? gold : Palette.stone)
                             .frame(width: counts[index] > 0 ? 11 : 7, height: counts[index] > 0 ? 11 : 7)
-                        Text(name.split(separator: " ").first ?? "").font(.system(size: 9, weight: .medium))
+                        Text(["Blessing others": "Blessing", "Decisive action": "Decisive", "Self-awareness": "Self-aware"][name] ?? name).font(.system(size: 9, weight: .medium))
                             .lineLimit(1).foregroundStyle(.white)
                     }.frame(width: 55, height: 44).contentShape(Rectangle())
                 }

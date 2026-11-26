@@ -11,6 +11,12 @@ struct NativeHeroView: View {
     @State private var goalMinutes = 30
     @State private var editingGoal: String?
     @State private var showingGoal = false
+    @State private var panel: Panel?
+
+    private enum Panel: String, Identifiable {
+        case mind = "Mind", body = "Body", soul = "Soul", quest = "Weekly Hero Quest", goals = "Goals", settings = "Settings"
+        var id: Self { self }
+    }
 
     private var dates: [String] { BodyDate.week(BodyDate.today) }
     private var monday: String { dates[0] }
@@ -22,9 +28,42 @@ struct NativeHeroView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("HERO").font(.prometheusTitle)
-            progress
-            VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("HERO").font(.prometheusTitle).accessibilityAddTraits(.isHeader)
+                Spacer()
+                Button("Goals") { panel = .goals }
+                    .buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+                Button("Settings", systemImage: "gearshape") { panel = .settings }
+                    .labelStyle(.iconOnly).buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+            }
+            dashboard
+        }
+        .sheet(item: $panel) { selected in
+            NavigationStack {
+                ScrollView {
+                    Group {
+                        switch selected {
+                        case .quest: questEditor
+                        case .goals: goalsPanel
+                        case .settings: BackupView()
+                        case .mind, .body, .soul: detail(selected)
+                        }
+                    }
+                    .padding(16)
+                }
+                .background(Palette.bone.ignoresSafeArea())
+                .navigationTitle(selected.rawValue)
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { panel = nil } } }
+                .sheet(isPresented: $showingGoal) { goalEditor }
+            }
+            .tint(Palette.ink)
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    private var questEditor: some View {
+        VStack(alignment: .leading, spacing: 12) {
                 Text("Weekly Hero Quest").font(.headline)
                 TextField("Quest", text: $questName)
                 TextField("Reward", text: $reward)
@@ -50,7 +89,14 @@ struct NativeHeroView: View {
                     }
                 }
             }.prometheusCard()
-            VStack(alignment: .leading, spacing: 10) {
+        .onAppear {
+            questName = quest["name"] as? String ?? ""
+            reward = quest["spoil"] as? String ?? ""
+        }
+    }
+
+    private var goalsPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Text("Long-term goals").font(.headline)
                     Spacer()
@@ -68,49 +114,113 @@ struct NativeHeroView: View {
                     }.buttonStyle(.bordered)
                 }
             }.prometheusCard()
-            BackupView()
-        }
-        .onAppear {
-            questName = quest["name"] as? String ?? ""
-            reward = quest["spoil"] as? String ?? ""
-        }
-        .sheet(isPresented: $showingGoal) { goalEditor }
     }
 
-    private var progress: some View {
+    private func scores(for dates: [String]) -> (mind: Double, body: Double, soul: Double, hero: Double) {
         let blocks = dates.flatMap { log.blocks($0) }.filter { $0["done"] as? Bool == true }
         let areas = HabitCatalog.current?.cats.flatMap(\.areas) ?? []
         let mind = areas.reduce(0.0) { sum, area in
             let count = blocks.filter { $0["area"] as? String == area.n }.count
             return sum + min(1, Double(count) / Double(area.goal))
         } / Double(max(1, areas.count))
-        let soul = Double(dates.filter { date in log.blocks(date).contains { $0["pillar"] as? String == "soul" && $0["done"] as? Bool == true } }.count) / 7
-        let planned = max(1, (log.root["plan"] as? [String: Any])?["workouts"] as? Int ?? 4)
-        let lifts = min(1, Double(log.liftDays(in: dates)) / Double(planned))
+        let soul = Double(dates.filter { date in log.blocks(date).contains {
+            $0["pillar"] as? String == "soul" && $0["done"] as? Bool == true
+        } }.count) / 7
+        let plan = log.root["plan"] as? [String: Any]
+        let target = max(1, plan?["workouts"] as? Int ?? 4)
+        let lifts = min(1, Double(log.liftDays(in: dates)) / Double(target))
         let weights = log.root["weights"] as? [String: Double] ?? [:]
         let logged = dates.filter { weights[$0] != nil }.count + dates.filter { !(log.food[$0] ?? []).isEmpty }.count
         let body = 0.7 * lifts + 0.3 * min(1, Double(logged) / 12)
-        let hero = Double((quest["done"] as? [Bool] ?? []).filter { $0 }.count) / 7
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Overall this week").font(.prometheusLabel).foregroundStyle(Palette.stone)
-                    Text(((mind + body + soul + hero) / 4).formatted(.percent.precision(.fractionLength(0))))
-                        .font(.prometheusTitle)
+        let hero = Double((quests[dates[0]]?["done"] as? [Bool] ?? []).prefix(7).filter { $0 }.count) / 7
+        return (mind, body, soul, hero)
+    }
+
+    private var dashboard: some View {
+        let scores = scores(for: dates)
+        let prior = self.scores(for: dates.map { BodyDate.add($0, days: -7) })
+        let overall = (scores.mind + scores.body + scores.soul + scores.hero) / 4
+        let before = (prior.mind + prior.body + prior.soul + prior.hero) / 4
+        let delta = Int(((overall - before) * 100).rounded())
+        return VStack(alignment: .leading, spacing: 12) {
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                scoreTile("Mind", fraction: scores.mind, color: Color(red: 0.18, green: 0.36, blue: 0.92), panel: .mind)
+                scoreTile("Body", fraction: scores.body, color: Palette.ember, panel: .body)
+                scoreTile("Soul", fraction: scores.soul, color: Color(red: 1, green: 0.69, blue: 0), panel: .soul)
+                scoreTile("Hero", fraction: scores.hero, color: Color(red: 0.08, green: 0.63, blue: 0.44), panel: .quest)
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 10) {
+                    Text(overall.formatted(.percent.precision(.fractionLength(0))))
+                        .font(.system(.largeTitle, design: .default, weight: .black).width(.condensed))
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Overall").font(.prometheusLabel).foregroundStyle(Palette.stone)
+                        Text("\(delta >= 0 ? "+" : "")\(delta)% vs last week")
+                            .font(.caption.bold()).foregroundStyle(delta < 0 ? Palette.ember : Color(red: 0.35, green: 0.82, blue: 0.62))
+                    }.padding(.top, 5)
+                    Spacer()
                 }
-                Spacer()
-                TimelineView(.animation(minimumInterval: 0.1, paused: reduceMotion)) { tick in
-                    let index = reduceMotion ? 0 : Int(tick.date.timeIntervalSince1970 * 10) % 9
-                    Image("Flame").resizable().frame(width: 576, height: 78)
-                        .offset(x: -CGFloat(index) * 64)
-                        .frame(width: 64, height: 78, alignment: .leading).clipped()
-                }.accessibilityHidden(true)
+                flame(overall)
+            }.prometheusCard(fill: Palette.ink).foregroundStyle(.white)
+        }
+    }
+
+    private func scoreTile(_ name: String, fraction: Double, color: Color, panel: Panel) -> some View {
+        Button { self.panel = panel } label: {
+            ZStack(alignment: .leading) {
+                GeometryReader { geometry in
+                    color.frame(width: geometry.size.width * min(1, max(0, fraction)))
+                }
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(panel == .quest ? "\(Int((fraction * 7).rounded()))/7" : fraction.formatted(.percent.precision(.fractionLength(0))))
+                        .font(.prometheusLabel)
+                    Text(name.uppercased()).font(.system(.title, design: .default, weight: .black).width(.condensed))
+                }
+                .padding(12).foregroundStyle(name == "Soul" && fraction >= 0.65 ? Palette.ink : .white)
             }
-            ForEach([("Mind", mind), ("Body", body), ("Soul", soul), ("Hero", hero)], id: \.0) { name, fraction in
-                LabeledContent(name, value: fraction.formatted(.percent.precision(.fractionLength(0))))
-                ProgressView(value: min(1, fraction)).tint(Palette.ember)
+            .frame(height: 94)
+            .background(Palette.ink)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+        }.buttonStyle(.plain)
+    }
+
+    private func flame(_ overall: Double) -> some View {
+        let width = 106 + 68 * overall
+        let height = width * 528 / 432
+        return TimelineView(.animation(minimumInterval: 0.1, paused: reduceMotion)) { tick in
+            let index = reduceMotion ? 0 : Int(tick.date.timeIntervalSince1970 * 10) % 9
+            Image("Flame").resizable().frame(width: width * 9, height: height)
+                .offset(x: -CGFloat(index) * width)
+                .frame(width: width, height: height, alignment: .leading).clipped()
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 214, alignment: .bottom)
+        .accessibilityHidden(true)
+    }
+
+    private func detail(_ selected: Panel) -> some View {
+        let current = scores(for: dates)
+        let value = selected == .mind ? current.mind : selected == .body ? current.body : current.soul
+        return VStack(alignment: .leading, spacing: 10) {
+            LabeledContent("This week", value: value.formatted(.percent.precision(.fractionLength(0))))
+            switch selected {
+            case .mind:
+                let blocks = dates.flatMap { log.blocks($0) }
+                ForEach(HabitCatalog.current?.cats.flatMap(\.areas) ?? [], id: \.n) { area in
+                    let done = blocks.filter { $0["area"] as? String == area.n && $0["done"] as? Bool == true }.count
+                    LabeledContent(area.n, value: "\(done)/\(area.goal)")
+                }
+            case .body:
+                LabeledContent("Lifting days", value: log.liftDays(in: dates).formatted())
+                LabeledContent("Food logs", value: dates.filter { !(log.food[$0] ?? []).isEmpty }.count.formatted())
+            case .soul:
+                ForEach(HabitCatalog.current?.quests.keys.sorted() ?? [], id: \.self) { trait in
+                    let count = dates.flatMap { log.blocks($0) }.filter { $0["trait"] as? String == trait && $0["done"] as? Bool == true }.count
+                    LabeledContent(trait, value: count.formatted())
+                }
+            default: EmptyView()
             }
-        }.prometheusCard(fill: Palette.ink).foregroundStyle(.white)
+        }.prometheusCard()
     }
 
     private var goalEditor: some View {
