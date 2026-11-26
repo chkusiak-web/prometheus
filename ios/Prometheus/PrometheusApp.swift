@@ -40,10 +40,12 @@ private enum Palette {
 }
 
 private struct PrometheusRootView: View {
+    @State private var log = NativeLog()
     @State private var selection: PrometheusTab = .today
     @State private var showingInputPreview = false
 
     var body: some View {
+        NavigationStack {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if selection == .today {
@@ -56,6 +58,7 @@ private struct PrometheusRootView: View {
                     .font(.system(.largeTitle, design: .default, weight: .black).width(.condensed))
                     .accessibilityAddTraits(.isHeader)
 
+                if selection != .body && selection != .today {
                 Text(selection.description)
                     .font(.body)
                     .foregroundStyle(Palette.muted)
@@ -63,12 +66,28 @@ private struct PrometheusRootView: View {
                     .padding(16)
                     .background(Palette.paper, in: RoundedRectangle(cornerRadius: 20))
 
+                }
+
                 if selection == .hero { BackupView() }
+
+                if selection == .body || selection == .today {
+                    VStack(alignment: .leading, spacing: 12) {
+                        NavigationLink { NativeWorkoutView(log: log) } label: {
+                            Label("Workout", systemImage: "dumbbell")
+                        }
+                        NavigationLink { NativeFoodView(log: log) } label: {
+                            Label("Log food", systemImage: "fork.knife")
+                        }
+                        Text("\(log.caloriesToday) kcal logged today")
+                            .font(.subheadline).foregroundStyle(Palette.muted)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Palette.ink)
+                }
 
                 if selection == .body {
                     Button("Try native input") { showingInputPreview = true }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Palette.ink)
+                        .buttonStyle(.bordered)
                 }
             }
             .frame(maxWidth: 520)
@@ -82,6 +101,12 @@ private struct PrometheusRootView: View {
         }
         .sheet(isPresented: $showingInputPreview) {
             NativeInputPreview()
+        }
+        .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: selection) { _, _ in log.reload() }
+        .alert("Could not save or load data", isPresented: Binding(get: { log.error != nil }, set: { if !$0 { log.error = nil } })) {
+            Button("OK") { log.error = nil }
+        } message: { Text(log.error ?? "") }
         }
         .preferredColorScheme(.light)
     }
