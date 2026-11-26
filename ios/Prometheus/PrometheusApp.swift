@@ -29,7 +29,7 @@ private enum PrometheusTab: String, CaseIterable, Identifiable {
     }
 }
 
-private enum Palette {
+enum Palette {
     static let bone = Color(red: 236 / 255, green: 232 / 255, blue: 225 / 255)
     static let paper = Color(red: 251 / 255, green: 250 / 255, blue: 247 / 255)
     static let ink = Color(red: 23 / 255, green: 23 / 255, blue: 26 / 255)
@@ -42,73 +42,230 @@ private enum Palette {
 private struct PrometheusRootView: View {
     @State private var log = NativeLog()
     @State private var selection: PrometheusTab = .today
-    @State private var showingInputPreview = false
+    @State private var showPlan = false
+    @State private var showAdd = false
+    @State private var blockName = ""
+    @State private var blockPillar = "body"
+    @State private var blockTime = Date()
 
     var body: some View {
         NavigationStack {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if selection == .today {
-                    Text(Date.now, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Palette.muted)
-                }
-
-                Text(selection.rawValue.uppercased())
-                    .font(.system(.largeTitle, design: .default, weight: .black).width(.condensed))
-                    .accessibilityAddTraits(.isHeader)
-
-                if selection != .body && selection != .today {
-                Text(selection.description)
-                    .font(.body)
-                    .foregroundStyle(Palette.muted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(Palette.paper, in: RoundedRectangle(cornerRadius: 20))
-
-                }
-
-                if selection == .hero { BackupView() }
-
-                if selection == .body || selection == .today {
-                    VStack(alignment: .leading, spacing: 12) {
-                        NavigationLink { NativeWorkoutView(log: log) } label: {
-                            Label("Workout", systemImage: "dumbbell")
-                        }
-                        NavigationLink { NativeFoodView(log: log) } label: {
-                            Label("Log food", systemImage: "fork.knife")
-                        }
-                        Text("\(log.caloriesToday) kcal logged today")
-                            .font(.subheadline).foregroundStyle(Palette.muted)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    switch selection {
+                    case .today: todayScreen
+                    case .body: bodyScreen
+                    default:
+                        Text(selection.rawValue.uppercased())
+                            .font(.prometheusTitle)
+                            .accessibilityAddTraits(.isHeader)
+                        if selection == .hero { BackupView() }
+                        else { Text(selection.description).foregroundStyle(Palette.muted).prometheusCard() }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(Palette.ink)
                 }
-
-                if selection == .body {
-                    Button("Try native input") { showingInputPreview = true }
-                        .buttonStyle(.bordered)
-                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: 520)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .frame(maxWidth: .infinity)
             }
-            .frame(maxWidth: 520)
-            .padding(16)
-            .frame(maxWidth: .infinity)
-        }
-        .foregroundStyle(Palette.ink)
-        .background(Palette.bone.ignoresSafeArea())
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            tabBar
-        }
-        .sheet(isPresented: $showingInputPreview) {
-            NativeInputPreview()
-        }
-        .toolbar(.hidden, for: .navigationBar)
-        .onChange(of: selection) { _, _ in log.reload() }
-        .alert("Could not save or load data", isPresented: Binding(get: { log.error != nil }, set: { if !$0 { log.error = nil } })) {
-            Button("OK") { log.error = nil }
-        } message: { Text(log.error ?? "") }
+            .foregroundStyle(Palette.ink)
+            .background(Palette.bone.ignoresSafeArea())
+            .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
+            .toolbar(.hidden, for: .navigationBar)
+            .onChange(of: selection) { _, _ in log.reload() }
+            .sheet(isPresented: $showPlan) { TrainingSchedule(log: log, today: BodyDate.today) }
+            .sheet(isPresented: $showAdd) { addBlockSheet }
+            .alert("Could not save or load data", isPresented: Binding(get: { log.error != nil }, set: { if !$0 { log.error = nil } })) {
+                Button("OK") { log.error = nil }
+            } message: { Text(log.error ?? "") }
         }
         .preferredColorScheme(.light)
+    }
+
+    @State private var back = false
+
+    private var days: [String: [String: Any]] { log.root["days"] as? [String: [String: Any]] ?? [:] }
+    private var blocks: [[String: Any]] { days[BodyDate.today]?["blocks"] as? [[String: Any]] ?? [] }
+
+    private var todayScreen: some View {
+        let next = blocks.first { $0["done"] as? Bool != true }
+        return Group {
+            VStack(alignment: .leading, spacing: 10) {
+                Text(Date.now, format: .dateTime.weekday(.abbreviated).day().month(.abbreviated))
+                    .font(.prometheusTitle).textCase(.uppercase)
+                    .accessibilityAddTraits(.isHeader)
+                weekStrip
+            }
+            .prometheusCard(fill: Palette.ink)
+            .foregroundStyle(.white)
+
+            quickActions
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Up next").font(.prometheusLabel)
+                Text(next?["name"] as? String ?? (blocks.isEmpty ? "Nothing planned" : "All done"))
+                    .font(.prometheusTitle).textCase(.uppercase)
+                if blocks.isEmpty {
+                    Button("Plan today") { showAdd = true }.buttonStyle(PrometheusPill())
+                }
+            }
+            .prometheusCard(fill: Palette.stone)
+
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Agenda").font(.prometheusLabel)
+                    Spacer()
+                    if !blocks.isEmpty { Button("Add block") { showAdd = true }.buttonStyle(PrometheusPill()) }
+                }
+                if blocks.isEmpty {
+                    Text("Your planned blocks will appear here.").font(.subheadline).foregroundStyle(Palette.muted)
+                }
+                ForEach(Array(blocks.enumerated()), id: \.offset) { _, block in
+                    HStack {
+                        Text(blockTimeLabel(block["start"] as? Int ?? 0)).font(.caption.monospacedDigit())
+                            .foregroundStyle(Palette.muted).frame(minWidth: 52, alignment: .leading)
+                        Text(block["name"] as? String ?? "Block").font(.subheadline.weight(.semibold))
+                        Spacer()
+                        if block["done"] as? Bool == true { Image(systemName: "checkmark") }
+                    }
+                    .padding(10)
+                    .background(Palette.bone, in: RoundedRectangle(cornerRadius: 12))
+                }
+            }.prometheusCard()
+        }
+    }
+
+    private var weekStrip: some View {
+        let weekday = Calendar.current.component(.weekday, from: Date())
+        let offset = (weekday + 5) % 7
+        return HStack(spacing: 5) {
+            ForEach(Array(["M", "T", "W", "T", "F", "S", "S"].enumerated()), id: \.offset) { index, label in
+                Text(label).font(.caption.weight(.bold))
+                    .frame(maxWidth: .infinity).padding(.vertical, 8)
+                    .foregroundStyle(index == offset ? Palette.ink : Palette.stone)
+                    .background(index == offset ? Palette.paper : Palette.charcoal, in: RoundedRectangle(cornerRadius: 8))
+                    .accessibilityHidden(true)
+            }
+        }
+    }
+
+    private var quickActions: some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) { workoutLink; foodLink }
+            VStack(spacing: 8) { workoutLink; foodLink }
+        }
+    }
+
+    private var workoutLink: some View {
+        NavigationLink { NativeWorkoutView(log: log) } label: {
+            Label("Start workout", systemImage: "dumbbell")
+                .frame(maxWidth: .infinity)
+        }.buttonStyle(PrometheusPill())
+    }
+
+    private var foodLink: some View {
+        NavigationLink { NativeFoodView(log: log) } label: {
+            Label("Log food", systemImage: "fork.knife")
+                .frame(maxWidth: .infinity)
+        }.buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+    }
+
+    private var bodyScreen: some View {
+        let weights = log.root["weights"] as? [String: Double] ?? [:]
+        let weight = weights.keys.sorted().last.flatMap { weights[$0] }
+        let sleep = days[BodyDate.today]?["sleep"] as? [String: Int]
+        let weekly = Set(log.workouts.compactMap { entry -> String? in
+            guard let run = log.decode(entry, as: NativeRun.self), run.endedAt != nil,
+                  run.day >= BodyDate.add(BodyDate.today, days: -6), run.day <= BodyDate.today,
+                  run.ex.contains(where: { $0.sets.contains { $0.done && $0.r > 0 } }) else { return nil }
+            return run.day
+        })
+        let plan = log.root["plan"] as? [String: Any]
+        let liftingTarget = plan?["workouts"] as? Int ?? (log.root["bodyWeek"] == nil ? 4 : 5)
+        return Group {
+            Text("BODY").font(.prometheusTitle).accessibilityAddTraits(.isHeader)
+            HStack(spacing: 10) {
+                stat("Weight", weight.map { $0.formatted() + " lb" } ?? "–")
+                Divider()
+                stat("Sleep", sleepLabel(sleep))
+                Divider()
+                stat("Lifting days", "\(weekly.count)/\(liftingTarget)")
+            }.prometheusCard()
+            quickActions
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Body plan").font(.prometheusLabel)
+                    Text("365 days").font(.headline)
+                }
+                Spacer()
+                Button("Show plan") { showPlan = true }.buttonStyle(PrometheusPill())
+            }.prometheusCard()
+            VStack(alignment: .leading, spacing: 10) {
+                Picker("Muscle map", selection: $back) {
+                    Text("Front").tag(false)
+                    Text("Back").tag(true)
+                }.pickerStyle(.segmented)
+                Image(back ? "MuscleBack" : "MuscleFront")
+                    .resizable().scaledToFit().frame(height: 300)
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel(back ? "Back muscle illustration" : "Front muscle illustration")
+            }.prometheusCard()
+            Text("\(log.caloriesToday) kcal logged today").font(.subheadline).foregroundStyle(Palette.muted)
+        }
+    }
+
+    private func stat(_ label: String, _ value: String) -> some View {
+        VStack(spacing: 6) {
+            Text(label).font(.prometheusLabel).foregroundStyle(Palette.muted)
+            Text(value).font(.title3.monospacedDigit())
+        }.frame(maxWidth: .infinity)
+    }
+
+    private func sleepLabel(_ sleep: [String: Int]?) -> String {
+        guard let bed = sleep?["bed"], let wake = sleep?["wake"] else { return "–" }
+        let minutes = (wake - bed + 1440) % 1440
+        return String(format: "%dh %02dm", minutes / 60, minutes % 60)
+    }
+
+    private func blockTimeLabel(_ minutes: Int) -> String {
+        let date = Calendar.current.startOfDay(for: Date()).addingTimeInterval(Double(minutes % 1440) * 60)
+        return date.formatted(.dateTime.hour().minute())
+    }
+
+    private var addBlockSheet: some View {
+        NavigationStack {
+            Form {
+                TextField("Block name", text: $blockName)
+                Picker("Pillar", selection: $blockPillar) {
+                    ForEach(["mind", "body", "soul", "todo"], id: \.self) { Text($0.capitalized) }
+                }
+                DatePicker("Time", selection: $blockTime, displayedComponents: .hourAndMinute)
+            }
+            .navigationTitle("Plan today")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { showAdd = false } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        let name = blockName.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !name.isEmpty else { return }
+                        let parts = Calendar.current.dateComponents([.hour, .minute], from: blockTime)
+                        let hour = parts.hour ?? 0
+                        let start = (hour < 4 ? hour + 24 : hour) * 60 + (parts.minute ?? 0)
+                        var dayMap = days
+                        var day = dayMap[BodyDate.today] ?? [:]
+                        var next = blocks
+                        next.append(["id": UUID().uuidString, "name": name, "pillar": blockPillar,
+                                     "start": start, "len": 30, "done": false])
+                        day["blocks"] = next.sorted { ($0["start"] as? Int ?? 0) < ($1["start"] as? Int ?? 0) }
+                        dayMap[BodyDate.today] = day
+                        if log.update({ $0["days"] = dayMap }) { blockName = ""; showAdd = false }
+                    }
+                    .disabled(blockName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
     }
 
     private var tabBar: some View {
@@ -180,27 +337,29 @@ private struct TabGlyph: InsettableShape {
     }
 }
 
-private struct NativeInputPreview: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var food = ""
-    @State private var quantity = ""
+extension Font {
+    static let prometheusTitle = Font.system(.largeTitle, design: .default, weight: .black).width(.condensed)
+    static let prometheusLabel = Font.caption.weight(.bold).smallCaps()
+}
 
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Food name", text: $food)
-                    .textInputAutocapitalization(.never)
-                TextField("Quantity", text: $quantity)
-                    .keyboardType(.decimalPad)
-            }
-            .navigationTitle("Input preview")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-        .presentationDragIndicator(.visible)
+extension View {
+    func prometheusCard(fill: Color = Palette.paper) -> some View {
+        self.frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background(fill, in: RoundedRectangle(cornerRadius: 18))
+    }
+}
+
+struct PrometheusPill: ButtonStyle {
+    var fill = Palette.ink
+    var ink = Color.white
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.subheadline.weight(.bold))
+            .foregroundStyle(ink)
+            .padding(.horizontal, 14)
+            .frame(minHeight: 44)
+            .background(fill.opacity(configuration.isPressed ? 0.8 : 1), in: Capsule())
     }
 }

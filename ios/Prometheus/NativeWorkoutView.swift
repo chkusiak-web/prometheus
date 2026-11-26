@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct NativeWorkoutView: View {
+    @Environment(\.dismiss) private var dismiss
     let log: NativeLog
     @State private var run: NativeRun?
     @State private var swapIndex: Int?
@@ -20,35 +21,48 @@ struct NativeWorkoutView: View {
     }
 
     var body: some View {
-        List {
-            if let run {
-                runner(run)
-            } else if completed {
-                ContentUnavailableView("Lift saved", systemImage: "checkmark.circle")
-            } else if let index, let session = NativeTraining.session(index) {
-                switch session {
-                case .lift(let name, let lifts):
-                    Section("Suggested workout") {
-                        Text(name).font(.title2.bold())
-                        ForEach(lifts.indices, id: \.self) { i in
-                            let lift = lifts[i]
-                            LabeledContent(lift.name, value: "\(lift.count) × \(lift.minimum)–\(lift.maximum)\(lift.timed ? " sec" : "")\(lift.perSide ? " per side" : "")")
-                        }
-                        Button("Start workout") { start(name, lifts: lifts, index: index) }
-                    }
-                case .recovery(let name, let text):
-                    ContentUnavailableView(name, systemImage: "figure.walk", description: Text(text))
-                }
-            } else {
-                ContentUnavailableView("No scheduled workout", systemImage: "calendar")
-            }
-        }
-        .navigationTitle(run?.name ?? "Workout")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
+        VStack(spacing: 0) {
+            HStack {
+                Button("Back") { dismiss() }
+                    .buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+                Spacer()
                 Button("Schedule", systemImage: "calendar") { showingSchedule = true }
+                    .buttonStyle(PrometheusPill(fill: Palette.paper, ink: Palette.ink))
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+
+            if let run {
+                List { runner(run) }
+                    .listStyle(.insetGrouped)
+                    .scrollContentBackground(.hidden)
+                    .tint(Palette.ink)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        if completed {
+                            ContentUnavailableView("Lift saved", systemImage: "checkmark.circle")
+                        } else if let index, let session = NativeTraining.session(index) {
+                            switch session {
+                            case .lift(let name, let lifts):
+                                workoutPreview(name, lifts: lifts, index: index)
+                            case .recovery(let name, let text):
+                                ContentUnavailableView(name, systemImage: "figure.walk", description: Text(text))
+                            }
+                        } else {
+                            ContentUnavailableView("No scheduled workout", systemImage: "calendar")
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .frame(maxWidth: 520)
+                    .padding(16)
+                    .frame(maxWidth: .infinity)
+                }
             }
         }
+        .foregroundStyle(Palette.ink)
+        .background(Palette.bone.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
         .sheet(isPresented: $showingSchedule) { TrainingSchedule(log: log, today: today) }
         .onAppear { run = log.decode(log.root["run"], as: NativeRun.self) }
         .confirmationDialog("Discard this workout?", isPresented: $discard) {
@@ -66,6 +80,35 @@ struct NativeWorkoutView: View {
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { swapIndex = nil } } }
             }
         }
+    }
+
+    private func workoutPreview(_ name: String, lifts: [LiftPrescription], index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Suggested workout").font(.prometheusLabel).foregroundStyle(Palette.muted)
+            Text(name)
+                .font(.subheadline.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 16)
+                .frame(minHeight: 44)
+                .background(Palette.ember, in: Capsule())
+                .accessibilityAddTraits(.isSelected)
+            Text(name.uppercased()).font(.prometheusTitle).accessibilityAddTraits(.isHeader)
+            ForEach(lifts.indices, id: \.self) { i in
+                let lift = lifts[i]
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(lift.name).font(.headline)
+                    Text("\(lift.count) × \(lift.minimum)–\(lift.maximum) \(lift.timed ? "sec" : "reps")\(lift.perSide ? " per side" : "")")
+                        .font(.subheadline).foregroundStyle(Palette.muted)
+                }.prometheusCard(fill: Palette.stone)
+            }
+            Button {
+                start(name, lifts: lifts, index: index)
+            } label: {
+                Text("Start workout").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(PrometheusPill())
+        }
+        .prometheusCard()
     }
 
     @ViewBuilder
@@ -190,7 +233,7 @@ struct NativeWorkoutView: View {
     }
 }
 
-private struct TrainingSchedule: View {
+struct TrainingSchedule: View {
     @Environment(\.dismiss) private var dismiss
     let log: NativeLog
     let today: String

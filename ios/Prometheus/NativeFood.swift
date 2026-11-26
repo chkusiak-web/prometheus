@@ -150,6 +150,9 @@ struct NativeFoodView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Palette.bone.ignoresSafeArea())
+        .tint(Palette.ink)
         .navigationTitle("Food")
         .task {
             do {
@@ -269,7 +272,10 @@ private struct FoodPortion: View {
                         if log.addFood(entry) { dismiss() }
                     }.disabled(!valid)
                 }
-            }.navigationTitle("Portion").navigationBarTitleDisplayMode(.inline)
+            }.scrollContentBackground(.hidden)
+                .background(Palette.bone.ignoresSafeArea())
+                .tint(Palette.ink)
+                .navigationTitle("Portion").navigationBarTitleDisplayMode(.inline)
                 .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } } }
         }
     }
